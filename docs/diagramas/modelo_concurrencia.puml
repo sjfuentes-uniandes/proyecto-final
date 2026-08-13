@@ -1,0 +1,116 @@
+@startuml
+title Solventa - Modelo de concurrencia (VA-006)
+
+top to bottom direction
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam componentStyle uml2
+skinparam nodesep 70
+skinparam ranksep 80
+skinparam ArrowFontSize 12
+skinparam ArrowThickness 1
+skinparam ArrowColor #455A64
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #607D8B
+  FontColor #263238
+}
+
+package "Solicitudes en línea" #EAF2F8 {
+  component "Solicitudes del portal,\nla aplicación móvil y socios" as Solicitudes <<Flujo de entrada>>
+  component "Procesos de acceso\na Solventa\n[N instancias]" as Acceso <<Grupo de procesos>>
+
+  Solicitudes -down-> Acceso : HTTPS
+}
+
+package "Procesamiento en línea" #FCF3CF {
+  component "Procesos de clientes, identidad\ny consentimientos\n[N instancias]" as ProcesosCliente <<Grupo de procesos>>
+  component "Procesos de perfil de riesgo,\nprecio y cotización\n[N instancias]" as ProcesosCotizacion <<Grupo de procesos>>
+  component "Procesos de suscripción\ny pólizas\n[N instancias]" as ProcesosPoliza <<Grupo de procesos>>
+  component "Procesos de atención\nde siniestros\n[N instancias]" as ProcesosSiniestro <<Grupo de procesos>>
+  component "Procesos de recaudos\ne indemnizaciones\n[N instancias]" as ProcesosDinero <<Grupo de procesos>>
+
+  ProcesosCliente -[hidden]right-> ProcesosCotizacion
+  ProcesosCotizacion -[hidden]right-> ProcesosPoliza
+  ProcesosPoliza -[hidden]right-> ProcesosSiniestro
+  ProcesosSiniestro -[hidden]right-> ProcesosDinero
+}
+
+package "Intercambio asíncrono" #F5EEF8 {
+  component "Particiones de eventos\ndel negocio\n[P particiones]" as ParticionesEventos <<Cola de procesos>>
+  component "Cola de emisión, avisos\ny conciliación" as ColaOperacion <<Cola de procesos>>
+  component "Cola de eventos\nparamétricos" as ColaParametrica <<Cola de procesos>>
+  component "Cola de auditoría" as ColaAuditoria <<Cola de procesos>>
+  component "Cola de actualización\nmasiva de perfiles" as ColaPerfiles <<Cola de procesos>>
+
+  ColaOperacion -[hidden]right-> ColaParametrica
+  ColaParametrica -[hidden]right-> ColaAuditoria
+  ColaAuditoria -[hidden]right-> ColaPerfiles
+  ParticionesEventos -[hidden]down-> ColaParametrica
+}
+
+package "Procesamiento paralelo de eventos" #E8F8F5 {
+  component "Procesos de emisión,\navisos y conciliación\n[N consumidores]" as ConsumidoresOperacion <<Grupo de procesos>>
+  component "Procesos de pagos\nparamétricos\n[N consumidores]" as ConsumidoresParametricos <<Grupo de procesos>>
+  component "Procesos de auditoría\n[N consumidores]" as ConsumidoresAuditoria <<Grupo de procesos>>
+  component "Procesos de actualización\nde perfiles y analítica\n[N trabajadores]" as ConsumidoresPerfiles <<Grupo de procesos>>
+
+  ConsumidoresOperacion -[hidden]right-> ConsumidoresParametricos
+  ConsumidoresParametricos -[hidden]right-> ConsumidoresAuditoria
+  ConsumidoresAuditoria -[hidden]right-> ConsumidoresPerfiles
+}
+
+package "Dependencias externas" #ECEFF1 {
+  component "Finanzas Abiertas, Datos Abiertos,\nKYC, pagos, firma y telemetría" as DependenciasExternas <<Sistemas externos>>
+  component "Control de espera, reintentos,\ncircuitos y degradación" as ControlDependencias <<Proceso de protección>>
+
+  DependenciasExternas -left-> ControlDependencias : respuestas
+}
+
+Acceso -[#3F6F8F]down-> ProcesosCliente
+Acceso -[#3F6F8F]down-> ProcesosCotizacion
+Acceso -[#3F6F8F]down-> ProcesosPoliza
+Acceso -[#3F6F8F]down-> ProcesosSiniestro
+
+ProcesosCotizacion -[#A66A00]right-> ProcesosCliente : (1)
+ProcesosCotizacion -[#A66A00]right-> ProcesosPoliza : (2)
+ProcesosPoliza -[#A66A00]right-> ProcesosDinero : (3)
+ProcesosSiniestro -[#A66A00]right-> ProcesosDinero : (4)
+
+ProcesosCliente -[#2A7F74]down-> ControlDependencias
+ProcesosCotizacion -[#2A7F74]down-> ControlDependencias
+ProcesosPoliza -[#2A7F74]down-> ControlDependencias
+ProcesosSiniestro -[#2A7F74]down-> ControlDependencias
+ProcesosDinero -[#2A7F74]down-> ControlDependencias
+
+ProcesosPoliza -[#6A4C93]down-> ParticionesEventos
+ProcesosSiniestro -[#6A4C93]down-> ParticionesEventos
+ProcesosDinero -[#6A4C93]down-> ParticionesEventos
+ControlDependencias -[#6A4C93]up-> ParticionesEventos : (5)
+
+ParticionesEventos -[#6A4C93]down-> ColaOperacion
+ParticionesEventos -[#6A4C93]down-> ColaParametrica
+ParticionesEventos -[#6A4C93]down-> ColaAuditoria
+ParticionesEventos -[#6A4C93]down-> ColaPerfiles
+
+ColaOperacion -[#6A4C93]down-> ConsumidoresOperacion
+ColaParametrica -[#6A4C93]down-> ConsumidoresParametricos
+ColaAuditoria -[#6A4C93]down-> ConsumidoresAuditoria
+ColaPerfiles -[#6A4C93]down-> ConsumidoresPerfiles
+
+ConsumidoresParametricos -[#A45A52]up-> ProcesosSiniestro : (6)
+ConsumidoresOperacion -[#A45A52]up-> ControlDependencias : (7)
+
+legend bottom
+  |= Referencia |= Coordinación entre procesos |
+  | (1) | Cotización valida el consentimiento del cliente |
+  | (2) | Cotización entrega la oferta aceptada a suscripción |
+  | (3) | Pólizas solicita el recaudo de la prima |
+  | (4) | Siniestros solicita el pago de la indemnización |
+  | (5) | Las fuentes externas entregan eventos de telemetría |
+  | (6) | El consumidor paramétrico crea un siniestro automático |
+  | (7) | El consumidor operativo firma, notifica y concilia |
+endlegend
+
+@enduml

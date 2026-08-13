@@ -1,0 +1,150 @@
+@startuml
+title Solventa - Modelo de información (VA-005)
+
+top to bottom direction
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam nodesep 55
+skinparam ranksep 65
+skinparam ArrowFontSize 12
+skinparam ArrowThickness 1
+skinparam ArrowColor #546E7A
+skinparam componentStyle uml2
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #607D8B
+  FontColor #263238
+}
+skinparam artifact {
+  BackgroundColor #FFFFFF
+  BorderColor #607D8B
+  FontColor #263238
+}
+
+package "Fuentes de información externas" #E8F8F5 {
+  component "Finanzas Abiertas" as FinanzasAbiertas <<Sistema externo>>
+  component "Datos Abiertos" as DatosAbiertos <<Sistema externo>>
+  component "Identidad, KYC\ny AML" as IdentidadExterna <<Sistema externo>>
+  component "Telemetría, clima\ny vuelos" as Telemetria <<Sistema externo>>
+  component "Medios de pago" as MediosPago <<Sistema externo>>
+
+  FinanzasAbiertas -[hidden]right-> DatosAbiertos
+  DatosAbiertos -[hidden]right-> IdentidadExterna
+  IdentidadExterna -[hidden]right-> Telemetria
+  Telemetria -[hidden]right-> MediosPago
+}
+
+package "Información del cliente y del riesgo" #EAF2F8 {
+  component "Clientes, identidad\ny consentimientos" as PropietarioCliente <<Propietario de información>>
+  component "Perfil de riesgo,\nprecio y cotización" as PropietarioCotizacion <<Propietario de información>>
+
+  artifact "Cliente asegurado" as ClienteInfo <<Información maestra>>
+  artifact "Consentimiento para\nel uso de datos" as ConsentimientoInfo <<Información maestra>>
+  artifact "Perfil de riesgo" as PerfilInfo <<Información derivada>>
+  artifact "Cotización" as CotizacionInfo <<Información transaccional>>
+
+  PropietarioCliente --> ClienteInfo : administra
+  PropietarioCliente --> ConsentimientoInfo : administra
+  PropietarioCotizacion --> PerfilInfo : calcula
+  PropietarioCotizacion --> CotizacionInfo : genera
+
+  ClienteInfo -[hidden]right-> ConsentimientoInfo
+  PerfilInfo -[hidden]right-> CotizacionInfo
+  PropietarioCliente -[hidden]right-> PropietarioCotizacion
+}
+
+package "Información de suscripción y pólizas" #FCF3CF {
+  component "Suscripción y\ngestión de pólizas" as PropietarioPoliza <<Propietario de información>>
+  artifact "Decisión de suscripción" as DecisionInfo <<Información explicable>>
+  artifact "Póliza" as PolizaInfo <<Información transaccional>>
+
+  PropietarioPoliza --> DecisionInfo : registra
+  PropietarioPoliza --> PolizaInfo : administra
+  DecisionInfo -[hidden]right-> PolizaInfo
+}
+
+package "Información de siniestros y dinero" #FDEDEC {
+  component "Atención de siniestros" as PropietarioSiniestro <<Propietario de información>>
+  component "Recaudos e\nindemnizaciones" as PropietarioDinero <<Propietario de información>>
+
+  artifact "Siniestro" as SiniestroInfo <<Información transaccional>>
+  artifact "Evidencia del siniestro" as EvidenciaInfo <<Documento>>
+  artifact "Movimiento de dinero" as MovimientoInfo <<Información conciliable>>
+
+  PropietarioSiniestro --> SiniestroInfo : administra
+  PropietarioSiniestro --> EvidenciaInfo : conserva
+  PropietarioDinero --> MovimientoInfo : concilia
+
+  SiniestroInfo -[hidden]right-> EvidenciaInfo
+  EvidenciaInfo -[hidden]right-> MovimientoInfo
+  PropietarioSiniestro -[hidden]right-> PropietarioDinero
+}
+
+package "Información intercambiada de forma asíncrona" #F5EEF8 {
+  component "Eventos del negocio" as CanalEventos <<Canal de eventos>>
+  artifact "Póliza emitida" as EventoPoliza <<Evento>>
+  artifact "Siniestro registrado\no aprobado" as EventoSiniestro <<Evento>>
+  artifact "Movimiento confirmado" as EventoDinero <<Evento>>
+  artifact "Evento paramétrico\nobservado" as EventoParametrico <<Evento externo>>
+
+  CanalEventos --> EventoPoliza : distribuye
+  CanalEventos --> EventoSiniestro : distribuye
+  CanalEventos --> EventoDinero : distribuye
+  CanalEventos --> EventoParametrico : recibe
+
+  EventoPoliza -[hidden]right-> EventoSiniestro
+  EventoSiniestro -[hidden]right-> EventoDinero
+  EventoDinero -[hidden]right-> EventoParametrico
+}
+
+package "Trazabilidad y uso de datos" #ECEFF1 {
+  component "Historial de decisiones\ny uso de datos" as PropietarioAuditoria <<Propietario de información>>
+  artifact "Registro de auditoría" as AuditoriaInfo <<Información inmutable>>
+  artifact "Linaje de datos y\nversiones de reglas" as LinajeInfo <<Información inmutable>>
+
+  PropietarioAuditoria --> AuditoriaInfo : conserva
+  PropietarioAuditoria --> LinajeInfo : conserva
+  AuditoriaInfo -[hidden]right-> LinajeInfo
+}
+
+FinanzasAbiertas -[#2A7F74]down-> PropietarioCotizacion : datos consentidos
+DatosAbiertos -[#2A7F74]down-> PropietarioCotizacion : datos públicos
+IdentidadExterna -[#2A7F74]down-> PropietarioCliente : verificación
+Telemetria -[#2A7F74]down-> CanalEventos : observaciones
+MediosPago -[#2A7F74]down-> PropietarioDinero : confirmaciones
+
+ConsentimientoInfo -[#3F6F8F]right-> PerfilInfo : (1)
+PerfilInfo -[#3F6F8F]right-> CotizacionInfo : (2)
+CotizacionInfo -[#A66A00]down-> DecisionInfo : (3)
+DecisionInfo -[#A66A00]right-> PolizaInfo : (4)
+PolizaInfo -[#A45A52]down-> SiniestroInfo : (5)
+PolizaInfo -[#A45A52]down-> MovimientoInfo : (6)
+SiniestroInfo -[#A45A52]right-> EvidenciaInfo : (7)
+SiniestroInfo -[#A45A52]right-> MovimientoInfo : (8)
+
+PropietarioPoliza -[#6A4C93]down-> CanalEventos : publica
+PropietarioSiniestro -[#6A4C93]down-> CanalEventos : publica
+PropietarioDinero -[#6A4C93]down-> CanalEventos : publica
+EventoParametrico -[#6A4C93]up-> PropietarioSiniestro : (9)
+
+PropietarioCliente -[#6B7280]down-> PropietarioAuditoria : registra acceso
+PropietarioCotizacion -[#6B7280]down-> PropietarioAuditoria : registra cálculo
+PropietarioPoliza -[#6B7280]down-> PropietarioAuditoria : registra decisión
+PropietarioSiniestro -[#6B7280]down-> PropietarioAuditoria : registra gestión
+PropietarioDinero -[#6B7280]down-> PropietarioAuditoria : registra movimiento
+
+legend bottom
+  |= Referencia |= Transformación de información |
+  | (1) | El consentimiento habilita el cálculo del perfil |
+  | (2) | El perfil de riesgo sustenta el precio de la cotización |
+  | (3) | La cotización se evalúa durante la suscripción |
+  | (4) | Una decisión aprobada genera la póliza |
+  | (5) | La póliza define la cobertura del siniestro |
+  | (6) | La póliza origina el recaudo de la prima |
+  | (7) | El siniestro incorpora evidencias |
+  | (8) | El siniestro aprobado origina una indemnización |
+  | (9) | Un evento paramétrico activa la evaluación del siniestro |
+endlegend
+
+@enduml

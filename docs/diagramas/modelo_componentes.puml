@@ -1,0 +1,130 @@
+@startuml
+title Solventa - Modelo de componentes (VA-003)
+
+left to right direction
+skinparam shadowing false
+skinparam linetype ortho
+skinparam componentStyle uml2
+skinparam packageStyle rectangle
+skinparam nodesep 100
+
+package "Experiencias de Solventa" #EAF2F8 {
+  component "Portal de gestión\nde Solventa" as PortalWeb
+  component "Aplicación móvil\nde Solventa" as AplicacionMovil
+  component "Canal de venta\ndel socio" as CanalSocio
+}
+
+package "Acceso a Solventa" #D6EAF8 {
+  component "Entrada segura\na la plataforma" as EntradaSegura
+  component "Servicios para\nel portal web" as ServiciosWeb
+  component "Servicios para\nla aplicación móvil" as ServiciosMovil
+  component "API para socios\nde distribución" as APISocios
+}
+
+package "Negocio asegurador" #FCF3CF {
+  component "Clientes, identidad\ny consentimientos" as ClientesIdentidad
+  component "Catálogo de seguros\ny reglas del negocio" as CatalogoReglas
+  component "Perfil de riesgo,\nprecio y cotización" as PerfilCotizacion
+  component "Suscripción y\ngestión de pólizas" as SuscripcionPolizas
+  component "Atención de\nsiniestros" as AtencionSiniestros
+  component "Recaudos e\nindemnizaciones" as RecaudosIndemnizaciones
+}
+
+package "Automatización del negocio" #F5EEF8 {
+  component "Eventos del\nnegocio" as EventosNegocio
+  component "Pagos por eventos\nparamétricos" as PagosParametricos
+  component "Emisión, avisos\ny conciliación" as EmisionAvisos
+  component "Actualización masiva de\nperfiles y analítica" as PerfilesAnalitica
+}
+
+package "Conexión con aliados" #E8F8F5 {
+  component "Conexión con Finanzas Abiertas\ny Datos Abiertos" as ConexionDatos
+  component "Verificación de identidad\ny prevención de lavado" as ConexionIdentidad
+  component "Conexión con medios\nde pago" as ConexionPagos
+  component "Firma electrónica\ny notificaciones" as ConexionFirma
+  component "Telemetría, reaseguradoras\ny prestadores" as ConexionOtros
+}
+
+package "Información y operación" #FDEDEC {
+  component "Información de clientes,\nseguros y operaciones" as InformacionNegocio <<Repositorio>>
+  component "Información de consulta rápida" as InformacionRapida <<Repositorio>>
+  component "Evidencias de siniestros" as Evidencias <<Repositorio>>
+  component "Historial de decisiones\ny uso de datos" as HistorialAuditoria <<Repositorio>>
+  component "Seguimiento de la\noperación de Solventa" as SeguimientoOperacion
+}
+
+PortalWeb --> EntradaSegura
+AplicacionMovil --> EntradaSegura
+CanalSocio --> EntradaSegura
+EntradaSegura --> ServiciosWeb
+EntradaSegura --> ServiciosMovil
+EntradaSegura --> APISocios
+
+ServiciosWeb --> ClientesIdentidad
+ServiciosWeb --> SuscripcionPolizas
+ServiciosWeb --> AtencionSiniestros
+ServiciosMovil --> ClientesIdentidad
+ServiciosMovil --> SuscripcionPolizas
+ServiciosMovil --> AtencionSiniestros
+APISocios --> PerfilCotizacion
+APISocios --> SuscripcionPolizas
+
+PerfilCotizacion --> CatalogoReglas : 1
+PerfilCotizacion --> ClientesIdentidad : 2
+PerfilCotizacion --> SuscripcionPolizas : 3
+SuscripcionPolizas --> RecaudosIndemnizaciones : 4
+AtencionSiniestros --> RecaudosIndemnizaciones : 5
+
+ClientesIdentidad --> InformacionNegocio
+CatalogoReglas --> InformacionNegocio
+PerfilCotizacion --> InformacionNegocio
+SuscripcionPolizas --> InformacionNegocio
+AtencionSiniestros --> InformacionNegocio
+RecaudosIndemnizaciones --> InformacionNegocio
+PerfilCotizacion --> InformacionRapida
+AtencionSiniestros --> Evidencias
+
+ClientesIdentidad --> ConexionDatos
+ClientesIdentidad --> ConexionIdentidad
+PerfilCotizacion --> ConexionDatos
+RecaudosIndemnizaciones --> ConexionPagos
+SuscripcionPolizas --> ConexionFirma
+AtencionSiniestros --> ConexionOtros
+
+SuscripcionPolizas --> EventosNegocio : 6
+AtencionSiniestros --> EventosNegocio : 7
+RecaudosIndemnizaciones --> EventosNegocio : 8
+ConexionOtros --> EventosNegocio : 9
+EventosNegocio --> PagosParametricos
+EventosNegocio --> EmisionAvisos
+EventosNegocio --> PerfilesAnalitica
+PagosParametricos --> AtencionSiniestros
+EmisionAvisos --> ConexionFirma
+
+ClientesIdentidad --> HistorialAuditoria
+PerfilCotizacion --> HistorialAuditoria
+SuscripcionPolizas --> HistorialAuditoria
+AtencionSiniestros --> HistorialAuditoria
+RecaudosIndemnizaciones --> HistorialAuditoria
+EntradaSegura ..> SeguimientoOperacion
+EventosNegocio ..> SeguimientoOperacion
+ConexionDatos ..> SeguimientoOperacion
+ConexionIdentidad ..> SeguimientoOperacion
+ConexionPagos ..> SeguimientoOperacion
+ConexionFirma ..> SeguimientoOperacion
+ConexionOtros ..> SeguimientoOperacion
+
+legend right
+  |= N.º |= Significado |
+  | 1 | consulta productos y reglas |
+  | 2 | valida consentimiento |
+  | 3 | envía oferta aceptada |
+  | 4 | solicita recaudo |
+  | 5 | solicita indemnización |
+  | 6 | publica pólizas emitidas |
+  | 7 | publica siniestros |
+  | 8 | publica movimientos |
+  | 9 | recibe eventos externos |
+endlegend
+
+@enduml
