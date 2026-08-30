@@ -11,6 +11,7 @@ mkdir -p "${OUTPUT_DIR}"
 docker build -t proyecto-final-diagramas "${ROOT_DIR}" >/dev/null
 
 docker run --rm \
+  -e PLANTUML_LIMIT_SIZE=16384 \
   -v "${ROOT_DIR}:/work" \
   -w /work \
   proyecto-final-diagramas \
