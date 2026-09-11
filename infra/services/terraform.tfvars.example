@@ -1,0 +1,8 @@
+quotation_replicas = 1
+task_cpu = 512
+task_memory = 1024
+db_pool_size = 5
+seed_command = ["python", "-m", "app.seed", "--dataset", "synthetic-v1"]
+# Publicar primero las cuatro imágenes y crear images.auto.tfvars.json.
+# image_digests debe contener cotizacion, consulta, catalogo y simulador.
+# base_state_path = "/ruta/absoluta/infra/base/terraform.tfstate"

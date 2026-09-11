@@ -1,0 +1,2061 @@
+data.terraform_remote_state.base: Reading...
+data.terraform_remote_state.base: Read complete after 0s
+data.aws_ecr_image.service["catalogo"]: Reading...
+data.aws_partition.current: Reading...
+data.aws_ecr_image.service["simulador"]: Reading...
+data.aws_ecr_image.service["consulta"]: Reading...
+data.aws_ecr_image.service["cotizacion"]: Reading...
+data.aws_partition.current: Read complete after 0s [id=aws]
+data.aws_ecr_image.service["simulador"]: Read complete after 1s [id=sha256:ada718af52e512efeecf3807bbff14469124f7e09439ffbdb7bff5b225887b82]
+data.aws_ecr_image.service["catalogo"]: Read complete after 1s [id=sha256:a978e15eb0c15b6ed5f60460cb54aee55c851eeec1cb1c0c3ed5cc2eac8f8d13]
+data.aws_ecr_image.service["cotizacion"]: Read complete after 1s [id=sha256:3c7246c31ead655ee6c4405d6a00351724dbcaeda9f4bfd75bee7bdde330e036]
+data.aws_ecr_image.service["consulta"]: Read complete after 1s [id=sha256:4335ec4f2db0cc71ed0bc0b643e051a080ae2fb34d1eb65ff216354112197693]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_apigatewayv2_api.experiment will be created
+  + resource "aws_apigatewayv2_api" "experiment" {
+      + api_endpoint                 = (known after apply)
+      + api_key_selection_expression = "$request.header.x-api-key"
+      + arn                          = (known after apply)
+      + execution_arn                = (known after apply)
+      + id                           = (known after apply)
+      + ip_address_type              = (known after apply)
+      + name                         = "solventa-exp"
+      + protocol_type                = "HTTP"
+      + region                       = "us-east-1"
+      + route_selection_expression   = "$request.method $request.path"
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_apigatewayv2_integration.alb will be created
+  + resource "aws_apigatewayv2_integration" "alb" {
+      + api_id                                    = (known after apply)
+      + connection_type                           = "INTERNET"
+      + id                                        = (known after apply)
+      + integration_method                        = "ANY"
+      + integration_response_selection_expression = (known after apply)
+      + integration_type                          = "HTTP_PROXY"
+      + integration_uri                           = "http://solventa-exp-entry-1785083628.us-east-1.elb.amazonaws.com"
+      + payload_format_version                    = "1.0"
+      + region                                    = "us-east-1"
+      + request_parameters                        = {
+          + "overwrite:header.X-Correlation-Id" = "$context.requestId"
+          + "overwrite:path"                    = "$request.path"
+        }
+      + timeout_milliseconds                      = 30000
+    }
+
+  # aws_apigatewayv2_route.service["ANY /consultas"] will be created
+  + resource "aws_apigatewayv2_route" "service" {
+      + api_id             = (known after apply)
+      + api_key_required   = false
+      + authorization_type = "NONE"
+      + id                 = (known after apply)
+      + region             = "us-east-1"
+      + route_key          = "ANY /consultas"
+      + target             = (known after apply)
+    }
+
+  # aws_apigatewayv2_route.service["ANY /consultas/{proxy+}"] will be created
+  + resource "aws_apigatewayv2_route" "service" {
+      + api_id             = (known after apply)
+      + api_key_required   = false
+      + authorization_type = "NONE"
+      + id                 = (known after apply)
+      + region             = "us-east-1"
+      + route_key          = "ANY /consultas/{proxy+}"
+      + target             = (known after apply)
+    }
+
+  # aws_apigatewayv2_route.service["ANY /cotizaciones"] will be created
+  + resource "aws_apigatewayv2_route" "service" {
+      + api_id             = (known after apply)
+      + api_key_required   = false
+      + authorization_type = "NONE"
+      + id                 = (known after apply)
+      + region             = "us-east-1"
+      + route_key          = "ANY /cotizaciones"
+      + target             = (known after apply)
+    }
+
+  # aws_apigatewayv2_route.service["ANY /cotizaciones/{proxy+}"] will be created
+  + resource "aws_apigatewayv2_route" "service" {
+      + api_id             = (known after apply)
+      + api_key_required   = false
+      + authorization_type = "NONE"
+      + id                 = (known after apply)
+      + region             = "us-east-1"
+      + route_key          = "ANY /cotizaciones/{proxy+}"
+      + target             = (known after apply)
+    }
+
+  # aws_apigatewayv2_stage.experiment will be created
+  + resource "aws_apigatewayv2_stage" "experiment" {
+      + api_id        = (known after apply)
+      + arn           = (known after apply)
+      + auto_deploy   = true
+      + deployment_id = (known after apply)
+      + execution_arn = (known after apply)
+      + id            = (known after apply)
+      + invoke_url    = (known after apply)
+      + name          = "$default"
+      + region        = "us-east-1"
+      + tags_all      = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+
+      + access_log_settings {
+          + destination_arn = (known after apply)
+          + format          = jsonencode(
+                {
+                  + httpMethod       = "$context.httpMethod"
+                  + integrationError = "$context.integrationErrorMessage"
+                  + requestId        = "$context.requestId"
+                  + requestTime      = "$context.requestTime"
+                  + responseLength   = "$context.responseLength"
+                  + routeKey         = "$context.routeKey"
+                  + sourceIp         = "$context.identity.sourceIp"
+                  + status           = "$context.status"
+                }
+            )
+        }
+
+      + default_route_settings {
+          + data_trace_enabled       = false
+          + detailed_metrics_enabled = true
+          + logging_level            = (known after apply)
+          + throttling_burst_limit   = 2000
+          + throttling_rate_limit    = 1000
+        }
+    }
+
+  # aws_cloudwatch_dashboard.experiment will be created
+  + resource "aws_cloudwatch_dashboard" "experiment" {
+      + dashboard_arn  = (known after apply)
+      + dashboard_body = (known after apply)
+      + dashboard_name = "solventa-exp"
+      + id             = (known after apply)
+      + region         = "us-east-1"
+    }
+
+  # aws_cloudwatch_log_group.api will be created
+  + resource "aws_cloudwatch_log_group" "api" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/aws/apigateway/solventa-exp"
+      + name_prefix                 = (known after apply)
+      + region                      = "us-east-1"
+      + retention_in_days           = 14
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_cloudwatch_log_group.proxy will be created
+  + resource "aws_cloudwatch_log_group" "proxy" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/ecs/solventa-exp/service-connect"
+      + name_prefix                 = (known after apply)
+      + region                      = "us-east-1"
+      + retention_in_days           = 14
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_cloudwatch_log_group.service["catalogo"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/ecs/solventa-exp/catalogo"
+      + name_prefix                 = (known after apply)
+      + region                      = "us-east-1"
+      + retention_in_days           = 14
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_cloudwatch_log_group.service["consulta"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/ecs/solventa-exp/consulta"
+      + name_prefix                 = (known after apply)
+      + region                      = "us-east-1"
+      + retention_in_days           = 14
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_cloudwatch_log_group.service["cotizacion"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/ecs/solventa-exp/cotizacion"
+      + name_prefix                 = (known after apply)
+      + region                      = "us-east-1"
+      + retention_in_days           = 14
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_cloudwatch_log_group.service["simulador"] will be created
+  + resource "aws_cloudwatch_log_group" "service" {
+      + arn                         = (known after apply)
+      + deletion_protection_enabled = (known after apply)
+      + id                          = (known after apply)
+      + log_group_class             = (known after apply)
+      + name                        = "/ecs/solventa-exp/simulador"
+      + name_prefix                 = (known after apply)
+      + region                      = "us-east-1"
+      + retention_in_days           = 14
+      + skip_destroy                = false
+      + tags_all                    = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_cloudwatch_metric_alarm.quotation_health will be created
+  + resource "aws_cloudwatch_metric_alarm" "quotation_health" {
+      + actions_enabled                       = true
+      + alarm_name                            = "solventa-exp-quotation-healthy"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "LessThanThreshold"
+      + dimensions                            = (known after apply)
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + metric_name                           = "HealthyHostCount"
+      + namespace                             = "AWS/ApplicationELB"
+      + period                                = 60
+      + region                                = "us-east-1"
+      + statistic                             = "Minimum"
+      + tags_all                              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + threshold                             = 1
+      + treat_missing_data                    = "breaching"
+    }
+
+  # aws_cloudwatch_metric_alarm.quotation_latency will be created
+  + resource "aws_cloudwatch_metric_alarm" "quotation_latency" {
+      + actions_enabled                       = true
+      + alarm_description                     = "Latencia del backend, en segundos. El p95 extremo a extremo se mide con la herramienta de carga."
+      + alarm_name                            = "solventa-exp-quotation-p95"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + dimensions                            = (known after apply)
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 2
+      + extended_statistic                    = "p95"
+      + id                                    = (known after apply)
+      + metric_name                           = "TargetResponseTime"
+      + namespace                             = "AWS/ApplicationELB"
+      + period                                = 60
+      + region                                = "us-east-1"
+      + tags_all                              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + threshold                             = 0.25
+      + treat_missing_data                    = "notBreaching"
+    }
+
+  # aws_ecs_service.backend["catalogo"] will be created
+  + resource "aws_ecs_service" "backend" {
+      + arn                                = (known after apply)
+      + availability_zone_rebalancing      = "DISABLED"
+      + cluster                            = "arn:aws:ecs:us-east-1:882567899411:cluster/solventa-exp"
+      + deployment_maximum_percent         = 200
+      + deployment_minimum_healthy_percent = 100
+      + desired_count                      = 1
+      + enable_ecs_managed_tags            = false
+      + enable_execute_command             = false
+      + iam_role                           = (known after apply)
+      + id                                 = (known after apply)
+      + launch_type                        = "FARGATE"
+      + name                               = "catalogo"
+      + platform_version                   = "1.4.0"
+      + propagate_tags                     = "SERVICE"
+      + region                             = "us-east-1"
+      + scheduling_strategy                = "REPLICA"
+      + tags                               = {
+          + "ExperimentService" = "catalogo"
+        }
+      + tags_all                           = {
+          + "Environment"       = "architecture-experiment"
+          + "ExperimentService" = "catalogo"
+          + "ManagedBy"         = "Terraform"
+          + "Project"           = "solventa-exp"
+        }
+      + task_definition                    = (known after apply)
+      + triggers                           = (known after apply)
+      + wait_for_steady_state              = false
+
+      + deployment_circuit_breaker {
+          + enable   = true
+          + rollback = true
+        }
+
+      + deployment_configuration (known after apply)
+
+      + network_configuration {
+          + assign_public_ip = true
+          + security_groups  = (known after apply)
+          + subnets          = [
+              + "subnet-032bda4dd6b9d5b55",
+            ]
+        }
+
+      + service_connect_configuration {
+          + enabled   = true
+          + namespace = "arn:aws:servicediscovery:us-east-1:882567899411:namespace/ns-mfsdaporwdew6jyv"
+
+          + log_configuration {
+              + log_driver = "awslogs"
+              + options    = {
+                  + "awslogs-group"         = "/ecs/solventa-exp/service-connect"
+                  + "awslogs-region"        = "us-east-1"
+                  + "awslogs-stream-prefix" = "catalogo"
+                }
+            }
+
+          + service {
+              + discovery_name = "catalogo"
+              + port_name      = "http"
+
+              + client_alias {
+                  + dns_name = "catalogo"
+                  + port     = 8080
+                }
+            }
+        }
+    }
+
+  # aws_ecs_service.backend["consulta"] will be created
+  + resource "aws_ecs_service" "backend" {
+      + arn                                = (known after apply)
+      + availability_zone_rebalancing      = "DISABLED"
+      + cluster                            = "arn:aws:ecs:us-east-1:882567899411:cluster/solventa-exp"
+      + deployment_maximum_percent         = 200
+      + deployment_minimum_healthy_percent = 100
+      + desired_count                      = 1
+      + enable_ecs_managed_tags            = false
+      + enable_execute_command             = false
+      + health_check_grace_period_seconds  = 30
+      + iam_role                           = (known after apply)
+      + id                                 = (known after apply)
+      + launch_type                        = "FARGATE"
+      + name                               = "consulta"
+      + platform_version                   = "1.4.0"
+      + propagate_tags                     = "SERVICE"
+      + region                             = "us-east-1"
+      + scheduling_strategy                = "REPLICA"
+      + tags                               = {
+          + "ExperimentService" = "consulta"
+        }
+      + tags_all                           = {
+          + "Environment"       = "architecture-experiment"
+          + "ExperimentService" = "consulta"
+          + "ManagedBy"         = "Terraform"
+          + "Project"           = "solventa-exp"
+        }
+      + task_definition                    = (known after apply)
+      + triggers                           = (known after apply)
+      + wait_for_steady_state              = false
+
+      + deployment_circuit_breaker {
+          + enable   = true
+          + rollback = true
+        }
+
+      + deployment_configuration (known after apply)
+
+      + load_balancer {
+          + container_name   = "consulta"
+          + container_port   = 8080
+          + target_group_arn = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+
+      + network_configuration {
+          + assign_public_ip = true
+          + security_groups  = (known after apply)
+          + subnets          = [
+              + "subnet-032bda4dd6b9d5b55",
+            ]
+        }
+
+      + service_connect_configuration {
+          + enabled   = true
+          + namespace = "arn:aws:servicediscovery:us-east-1:882567899411:namespace/ns-mfsdaporwdew6jyv"
+
+          + log_configuration {
+              + log_driver = "awslogs"
+              + options    = {
+                  + "awslogs-group"         = "/ecs/solventa-exp/service-connect"
+                  + "awslogs-region"        = "us-east-1"
+                  + "awslogs-stream-prefix" = "consulta"
+                }
+            }
+        }
+    }
+
+  # aws_ecs_service.backend["simulador"] will be created
+  + resource "aws_ecs_service" "backend" {
+      + arn                                = (known after apply)
+      + availability_zone_rebalancing      = "DISABLED"
+      + cluster                            = "arn:aws:ecs:us-east-1:882567899411:cluster/solventa-exp"
+      + deployment_maximum_percent         = 200
+      + deployment_minimum_healthy_percent = 100
+      + desired_count                      = 1
+      + enable_ecs_managed_tags            = false
+      + enable_execute_command             = false
+      + iam_role                           = (known after apply)
+      + id                                 = (known after apply)
+      + launch_type                        = "FARGATE"
+      + name                               = "simulador"
+      + platform_version                   = "1.4.0"
+      + propagate_tags                     = "SERVICE"
+      + region                             = "us-east-1"
+      + scheduling_strategy                = "REPLICA"
+      + tags                               = {
+          + "ExperimentService" = "simulador"
+        }
+      + tags_all                           = {
+          + "Environment"       = "architecture-experiment"
+          + "ExperimentService" = "simulador"
+          + "ManagedBy"         = "Terraform"
+          + "Project"           = "solventa-exp"
+        }
+      + task_definition                    = (known after apply)
+      + triggers                           = (known after apply)
+      + wait_for_steady_state              = false
+
+      + deployment_circuit_breaker {
+          + enable   = true
+          + rollback = true
+        }
+
+      + deployment_configuration (known after apply)
+
+      + network_configuration {
+          + assign_public_ip = true
+          + security_groups  = (known after apply)
+          + subnets          = [
+              + "subnet-032bda4dd6b9d5b55",
+            ]
+        }
+
+      + service_connect_configuration {
+          + enabled   = true
+          + namespace = "arn:aws:servicediscovery:us-east-1:882567899411:namespace/ns-mfsdaporwdew6jyv"
+
+          + log_configuration {
+              + log_driver = "awslogs"
+              + options    = {
+                  + "awslogs-group"         = "/ecs/solventa-exp/service-connect"
+                  + "awslogs-region"        = "us-east-1"
+                  + "awslogs-stream-prefix" = "simulador"
+                }
+            }
+
+          + service {
+              + discovery_name = "simulador"
+              + port_name      = "http"
+
+              + client_alias {
+                  + dns_name = "simulador"
+                  + port     = 8080
+                }
+            }
+        }
+    }
+
+  # aws_ecs_service.quotation["cotizacion"] will be created
+  + resource "aws_ecs_service" "quotation" {
+      + arn                                = (known after apply)
+      + availability_zone_rebalancing      = "DISABLED"
+      + cluster                            = "arn:aws:ecs:us-east-1:882567899411:cluster/solventa-exp"
+      + deployment_maximum_percent         = 200
+      + deployment_minimum_healthy_percent = 100
+      + desired_count                      = 1
+      + enable_ecs_managed_tags            = false
+      + enable_execute_command             = false
+      + health_check_grace_period_seconds  = 30
+      + iam_role                           = (known after apply)
+      + id                                 = (known after apply)
+      + launch_type                        = "FARGATE"
+      + name                               = "cotizacion"
+      + platform_version                   = "1.4.0"
+      + propagate_tags                     = "SERVICE"
+      + region                             = "us-east-1"
+      + scheduling_strategy                = "REPLICA"
+      + tags                               = {
+          + "ExperimentService" = "cotizacion"
+        }
+      + tags_all                           = {
+          + "Environment"       = "architecture-experiment"
+          + "ExperimentService" = "cotizacion"
+          + "ManagedBy"         = "Terraform"
+          + "Project"           = "solventa-exp"
+        }
+      + task_definition                    = (known after apply)
+      + triggers                           = (known after apply)
+      + wait_for_steady_state              = false
+
+      + deployment_circuit_breaker {
+          + enable   = true
+          + rollback = true
+        }
+
+      + deployment_configuration (known after apply)
+
+      + load_balancer {
+          + container_name   = "cotizacion"
+          + container_port   = 8080
+          + target_group_arn = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+
+      + network_configuration {
+          + assign_public_ip = true
+          + security_groups  = (known after apply)
+          + subnets          = [
+              + "subnet-032bda4dd6b9d5b55",
+            ]
+        }
+
+      + service_connect_configuration {
+          + enabled   = true
+          + namespace = "arn:aws:servicediscovery:us-east-1:882567899411:namespace/ns-mfsdaporwdew6jyv"
+
+          + log_configuration {
+              + log_driver = "awslogs"
+              + options    = {
+                  + "awslogs-group"         = "/ecs/solventa-exp/service-connect"
+                  + "awslogs-region"        = "us-east-1"
+                  + "awslogs-stream-prefix" = "cotizacion"
+                }
+            }
+        }
+    }
+
+  # aws_ecs_task_definition.seed[0] will be created
+  + resource "aws_ecs_task_definition" "seed" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = jsonencode(
+            [
+              + {
+                  + command          = [
+                      + "python",
+                      + "-m",
+                      + "app.seed",
+                      + "--dataset",
+                      + "synthetic-v1",
+                    ]
+                  + environment      = [
+                      + {
+                          + name  = "CORRELATION_HEADER"
+                          + value = "X-Correlation-Id"
+                        },
+                      + {
+                          + name  = "DATASET_VERSION"
+                          + value = "synthetic-v1"
+                        },
+                      + {
+                          + name  = "DB_HOST"
+                          + value = "solventa-exp.cshaagmywe6m.us-east-1.rds.amazonaws.com"
+                        },
+                      + {
+                          + name  = "DB_NAME"
+                          + value = "solventa"
+                        },
+                      + {
+                          + name  = "DB_POOL_SIZE"
+                          + value = "5"
+                        },
+                      + {
+                          + name  = "DB_PORT"
+                          + value = "5432"
+                        },
+                      + {
+                          + name  = "DB_SSLMODE"
+                          + value = "require"
+                        },
+                      + {
+                          + name  = "LOG_FORMAT"
+                          + value = "json"
+                        },
+                      + {
+                          + name  = "PORT"
+                          + value = "8080"
+                        },
+                      + {
+                          + name  = "RULES_VERSION"
+                          + value = "synthetic-v1"
+                        },
+                      + {
+                          + name  = "SERVICE_NAME"
+                          + value = "catalogo"
+                        },
+                    ]
+                  + essential        = true
+                  + image            = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/catalogo@sha256:a978e15eb0c15b6ed5f60460cb54aee55c851eeec1cb1c0c3ed5cc2eac8f8d13"
+                  + logConfiguration = {
+                      + logDriver = "awslogs"
+                      + options   = {
+                          + awslogs-group         = "/ecs/solventa-exp/catalogo"
+                          + awslogs-region        = "us-east-1"
+                          + awslogs-stream-prefix = "app"
+                        }
+                    }
+                  + name             = "seed"
+                  + secrets          = [
+                      + {
+                          + name      = "DB_PASSWORD"
+                          + valueFrom = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg:password::"
+                        },
+                      + {
+                          + name      = "DB_USER"
+                          + valueFrom = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg:username::"
+                        },
+                    ]
+                  + stopTimeout      = 30
+                },
+            ]
+        )
+      + cpu                      = "512"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "solventa-exp-seed"
+      + id                       = (known after apply)
+      + memory                   = "1024"
+      + network_mode             = "awsvpc"
+      + region                   = "us-east-1"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "X86_64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # aws_ecs_task_definition.service["catalogo"] will be created
+  + resource "aws_ecs_task_definition" "service" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = jsonencode(
+            [
+              + {
+                  + environment      = [
+                      + {
+                          + name  = "CORRELATION_HEADER"
+                          + value = "X-Correlation-Id"
+                        },
+                      + {
+                          + name  = "DATASET_VERSION"
+                          + value = "synthetic-v1"
+                        },
+                      + {
+                          + name  = "DB_HOST"
+                          + value = "solventa-exp.cshaagmywe6m.us-east-1.rds.amazonaws.com"
+                        },
+                      + {
+                          + name  = "DB_NAME"
+                          + value = "solventa"
+                        },
+                      + {
+                          + name  = "DB_POOL_SIZE"
+                          + value = "5"
+                        },
+                      + {
+                          + name  = "DB_PORT"
+                          + value = "5432"
+                        },
+                      + {
+                          + name  = "DB_SSLMODE"
+                          + value = "require"
+                        },
+                      + {
+                          + name  = "LOG_FORMAT"
+                          + value = "json"
+                        },
+                      + {
+                          + name  = "PORT"
+                          + value = "8080"
+                        },
+                      + {
+                          + name  = "RULES_VERSION"
+                          + value = "synthetic-v1"
+                        },
+                      + {
+                          + name  = "SERVICE_NAME"
+                          + value = "catalogo"
+                        },
+                    ]
+                  + essential        = true
+                  + healthCheck      = {
+                      + command     = [
+                          + "CMD",
+                          + "/app/healthcheck",
+                        ]
+                      + interval    = 5
+                      + retries     = 2
+                      + startPeriod = 30
+                      + timeout     = 2
+                    }
+                  + image            = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/catalogo@sha256:a978e15eb0c15b6ed5f60460cb54aee55c851eeec1cb1c0c3ed5cc2eac8f8d13"
+                  + logConfiguration = {
+                      + logDriver = "awslogs"
+                      + options   = {
+                          + awslogs-group         = "/ecs/solventa-exp/catalogo"
+                          + awslogs-region        = "us-east-1"
+                          + awslogs-stream-prefix = "app"
+                        }
+                    }
+                  + name             = "catalogo"
+                  + portMappings     = [
+                      + {
+                          + appProtocol   = "http"
+                          + containerPort = 8080
+                          + name          = "http"
+                          + protocol      = "tcp"
+                        },
+                    ]
+                  + secrets          = [
+                      + {
+                          + name      = "DB_PASSWORD"
+                          + valueFrom = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg:password::"
+                        },
+                      + {
+                          + name      = "DB_USER"
+                          + valueFrom = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg:username::"
+                        },
+                    ]
+                  + stopTimeout      = 30
+                },
+            ]
+        )
+      + cpu                      = "512"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "solventa-exp-catalogo"
+      + id                       = (known after apply)
+      + memory                   = "1024"
+      + network_mode             = "awsvpc"
+      + region                   = "us-east-1"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "X86_64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # aws_ecs_task_definition.service["consulta"] will be created
+  + resource "aws_ecs_task_definition" "service" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = jsonencode(
+            [
+              + {
+                  + environment      = [
+                      + {
+                          + name  = "CORRELATION_HEADER"
+                          + value = "X-Correlation-Id"
+                        },
+                      + {
+                          + name  = "DATASET_VERSION"
+                          + value = "synthetic-v1"
+                        },
+                      + {
+                          + name  = "DB_HOST"
+                          + value = "solventa-exp.cshaagmywe6m.us-east-1.rds.amazonaws.com"
+                        },
+                      + {
+                          + name  = "DB_NAME"
+                          + value = "solventa"
+                        },
+                      + {
+                          + name  = "DB_POOL_SIZE"
+                          + value = "5"
+                        },
+                      + {
+                          + name  = "DB_PORT"
+                          + value = "5432"
+                        },
+                      + {
+                          + name  = "DB_SSLMODE"
+                          + value = "require"
+                        },
+                      + {
+                          + name  = "LOG_FORMAT"
+                          + value = "json"
+                        },
+                      + {
+                          + name  = "PORT"
+                          + value = "8080"
+                        },
+                      + {
+                          + name  = "SERVICE_NAME"
+                          + value = "consulta"
+                        },
+                    ]
+                  + essential        = true
+                  + healthCheck      = {
+                      + command     = [
+                          + "CMD",
+                          + "/app/healthcheck",
+                        ]
+                      + interval    = 5
+                      + retries     = 2
+                      + startPeriod = 30
+                      + timeout     = 2
+                    }
+                  + image            = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/consulta@sha256:4335ec4f2db0cc71ed0bc0b643e051a080ae2fb34d1eb65ff216354112197693"
+                  + logConfiguration = {
+                      + logDriver = "awslogs"
+                      + options   = {
+                          + awslogs-group         = "/ecs/solventa-exp/consulta"
+                          + awslogs-region        = "us-east-1"
+                          + awslogs-stream-prefix = "app"
+                        }
+                    }
+                  + name             = "consulta"
+                  + portMappings     = [
+                      + {
+                          + appProtocol   = "http"
+                          + containerPort = 8080
+                          + name          = "http"
+                          + protocol      = "tcp"
+                        },
+                    ]
+                  + secrets          = [
+                      + {
+                          + name      = "DB_PASSWORD"
+                          + valueFrom = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg:password::"
+                        },
+                      + {
+                          + name      = "DB_USER"
+                          + valueFrom = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg:username::"
+                        },
+                    ]
+                  + stopTimeout      = 30
+                },
+            ]
+        )
+      + cpu                      = "512"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "solventa-exp-consulta"
+      + id                       = (known after apply)
+      + memory                   = "1024"
+      + network_mode             = "awsvpc"
+      + region                   = "us-east-1"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "X86_64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # aws_ecs_task_definition.service["cotizacion"] will be created
+  + resource "aws_ecs_task_definition" "service" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = jsonencode(
+            [
+              + {
+                  + environment      = [
+                      + {
+                          + name  = "CATALOG_URL"
+                          + value = "http://catalogo:8080"
+                        },
+                      + {
+                          + name  = "CORRELATION_HEADER"
+                          + value = "X-Correlation-Id"
+                        },
+                      + {
+                          + name  = "DATASET_VERSION"
+                          + value = "synthetic-v1"
+                        },
+                      + {
+                          + name  = "DB_HOST"
+                          + value = "solventa-exp.cshaagmywe6m.us-east-1.rds.amazonaws.com"
+                        },
+                      + {
+                          + name  = "DB_NAME"
+                          + value = "solventa"
+                        },
+                      + {
+                          + name  = "DB_POOL_SIZE"
+                          + value = "5"
+                        },
+                      + {
+                          + name  = "DB_PORT"
+                          + value = "5432"
+                        },
+                      + {
+                          + name  = "DB_SSLMODE"
+                          + value = "require"
+                        },
+                      + {
+                          + name  = "EXTERNAL_SOURCE_RETRIES"
+                          + value = "0"
+                        },
+                      + {
+                          + name  = "EXTERNAL_SOURCE_TIMEOUT_MS"
+                          + value = "150"
+                        },
+                      + {
+                          + name  = "EXTERNAL_SOURCE_URL"
+                          + value = "http://simulador:8080"
+                        },
+                      + {
+                          + name  = "LOG_FORMAT"
+                          + value = "json"
+                        },
+                      + {
+                          + name  = "PORT"
+                          + value = "8080"
+                        },
+                      + {
+                          + name  = "RULES_CACHE_ENABLED"
+                          + value = "true"
+                        },
+                      + {
+                          + name  = "SERVICE_NAME"
+                          + value = "cotizacion"
+                        },
+                    ]
+                  + essential        = true
+                  + healthCheck      = {
+                      + command     = [
+                          + "CMD",
+                          + "/app/healthcheck",
+                        ]
+                      + interval    = 5
+                      + retries     = 2
+                      + startPeriod = 30
+                      + timeout     = 2
+                    }
+                  + image            = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/cotizacion@sha256:3c7246c31ead655ee6c4405d6a00351724dbcaeda9f4bfd75bee7bdde330e036"
+                  + logConfiguration = {
+                      + logDriver = "awslogs"
+                      + options   = {
+                          + awslogs-group         = "/ecs/solventa-exp/cotizacion"
+                          + awslogs-region        = "us-east-1"
+                          + awslogs-stream-prefix = "app"
+                        }
+                    }
+                  + name             = "cotizacion"
+                  + portMappings     = [
+                      + {
+                          + appProtocol   = "http"
+                          + containerPort = 8080
+                          + name          = "http"
+                          + protocol      = "tcp"
+                        },
+                    ]
+                  + secrets          = [
+                      + {
+                          + name      = "DB_PASSWORD"
+                          + valueFrom = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg:password::"
+                        },
+                      + {
+                          + name      = "DB_USER"
+                          + valueFrom = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg:username::"
+                        },
+                    ]
+                  + stopTimeout      = 30
+                },
+            ]
+        )
+      + cpu                      = "512"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "solventa-exp-cotizacion"
+      + id                       = (known after apply)
+      + memory                   = "1024"
+      + network_mode             = "awsvpc"
+      + region                   = "us-east-1"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "X86_64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # aws_ecs_task_definition.service["simulador"] will be created
+  + resource "aws_ecs_task_definition" "service" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = jsonencode(
+            [
+              + {
+                  + environment      = [
+                      + {
+                          + name  = "CORRELATION_HEADER"
+                          + value = "X-Correlation-Id"
+                        },
+                      + {
+                          + name  = "FAILURE_RATE"
+                          + value = "0"
+                        },
+                      + {
+                          + name  = "LOG_FORMAT"
+                          + value = "json"
+                        },
+                      + {
+                          + name  = "PORT"
+                          + value = "8080"
+                        },
+                      + {
+                          + name  = "RESPONSE_DELAY_MS"
+                          + value = "50"
+                        },
+                      + {
+                          + name  = "SERVICE_NAME"
+                          + value = "simulador"
+                        },
+                    ]
+                  + essential        = true
+                  + healthCheck      = {
+                      + command     = [
+                          + "CMD",
+                          + "/app/healthcheck",
+                        ]
+                      + interval    = 5
+                      + retries     = 2
+                      + startPeriod = 30
+                      + timeout     = 2
+                    }
+                  + image            = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/simulador@sha256:ada718af52e512efeecf3807bbff14469124f7e09439ffbdb7bff5b225887b82"
+                  + logConfiguration = {
+                      + logDriver = "awslogs"
+                      + options   = {
+                          + awslogs-group         = "/ecs/solventa-exp/simulador"
+                          + awslogs-region        = "us-east-1"
+                          + awslogs-stream-prefix = "app"
+                        }
+                    }
+                  + name             = "simulador"
+                  + portMappings     = [
+                      + {
+                          + appProtocol   = "http"
+                          + containerPort = 8080
+                          + name          = "http"
+                          + protocol      = "tcp"
+                        },
+                    ]
+                  + secrets          = []
+                  + stopTimeout      = 30
+                },
+            ]
+        )
+      + cpu                      = "512"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "solventa-exp-simulador"
+      + id                       = (known after apply)
+      + memory                   = "1024"
+      + network_mode             = "awsvpc"
+      + region                   = "us-east-1"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "X86_64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # aws_iam_policy.stop_quotation_task will be created
+  + resource "aws_iam_policy" "stop_quotation_task" {
+      + arn              = (known after apply)
+      + attachment_count = (known after apply)
+      + id               = (known after apply)
+      + name             = "solventa-exp-stop-quotation-task"
+      + name_prefix      = (known after apply)
+      + path             = "/"
+      + policy           = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = [
+                          + "ecs:StopTask",
+                        ]
+                      + Condition = {
+                          + ArnEquals    = {
+                              + "ecs:cluster" = "arn:aws:ecs:us-east-1:882567899411:cluster/solventa-exp"
+                            }
+                          + StringEquals = {
+                              + "aws:ResourceTag/ExperimentService" = "cotizacion"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Resource  = "arn:aws:ecs:us-east-1:882567899411:task/solventa-exp/*"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + policy_id        = (known after apply)
+      + tags_all         = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_iam_role.execution["catalogo"] will be created
+  + resource "aws_iam_role" "execution" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "solventa-exp-catalogo-exec"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.execution["consulta"] will be created
+  + resource "aws_iam_role" "execution" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "solventa-exp-consulta-exec"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.execution["cotizacion"] will be created
+  + resource "aws_iam_role" "execution" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "solventa-exp-cotizacion-exec"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.execution["simulador"] will be created
+  + resource "aws_iam_role" "execution" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "solventa-exp-simulador-exec"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.task["catalogo"] will be created
+  + resource "aws_iam_role" "task" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "solventa-exp-catalogo-task"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.task["consulta"] will be created
+  + resource "aws_iam_role" "task" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "solventa-exp-consulta-task"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.task["cotizacion"] will be created
+  + resource "aws_iam_role" "task" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "solventa-exp-cotizacion-task"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.task["simulador"] will be created
+  + resource "aws_iam_role" "task" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "solventa-exp-simulador-task"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role_policy.execution["catalogo"] will be created
+  + resource "aws_iam_role_policy" "execution" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.execution["consulta"] will be created
+  + resource "aws_iam_role_policy" "execution" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.execution["cotizacion"] will be created
+  + resource "aws_iam_role_policy" "execution" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.execution["simulador"] will be created
+  + resource "aws_iam_role_policy" "execution" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_lb_listener_rule.service["consulta"] will be created
+  + resource "aws_lb_listener_rule" "service" {
+      + arn          = (known after apply)
+      + id           = (known after apply)
+      + listener_arn = "arn:aws:elasticloadbalancing:us-east-1:882567899411:listener/app/solventa-exp-entry/b5c9d33967a15a2d/2735d955ab1ac220"
+      + priority     = 20
+      + region       = "us-east-1"
+      + tags_all     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+
+      + action {
+          + order            = (known after apply)
+          + target_group_arn = (known after apply)
+          + type             = "forward"
+        }
+
+      + condition {
+          + path_pattern {
+              + regex_values = []
+              + values       = [
+                  + "/consultas",
+                  + "/consultas/*",
+                ]
+            }
+        }
+    }
+
+  # aws_lb_listener_rule.service["cotizacion"] will be created
+  + resource "aws_lb_listener_rule" "service" {
+      + arn          = (known after apply)
+      + id           = (known after apply)
+      + listener_arn = "arn:aws:elasticloadbalancing:us-east-1:882567899411:listener/app/solventa-exp-entry/b5c9d33967a15a2d/2735d955ab1ac220"
+      + priority     = 10
+      + region       = "us-east-1"
+      + tags_all     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+
+      + action {
+          + order            = (known after apply)
+          + target_group_arn = (known after apply)
+          + type             = "forward"
+        }
+
+      + condition {
+          + path_pattern {
+              + regex_values = []
+              + values       = [
+                  + "/cotizaciones",
+                  + "/cotizaciones/*",
+                ]
+            }
+        }
+    }
+
+  # aws_lb_target_group.service["consulta"] will be created
+  + resource "aws_lb_target_group" "service" {
+      + arn                                = (known after apply)
+      + arn_suffix                         = (known after apply)
+      + connection_termination             = (known after apply)
+      + deregistration_delay               = "5"
+      + id                                 = (known after apply)
+      + ip_address_type                    = (known after apply)
+      + lambda_multi_value_headers_enabled = false
+      + load_balancer_arns                 = (known after apply)
+      + load_balancing_algorithm_type      = (known after apply)
+      + load_balancing_anomaly_mitigation  = (known after apply)
+      + load_balancing_cross_zone_enabled  = (known after apply)
+      + name                               = "solventa-exp-consulta"
+      + name_prefix                        = (known after apply)
+      + port                               = 8080
+      + preserve_client_ip                 = (known after apply)
+      + protocol                           = "HTTP"
+      + protocol_version                   = (known after apply)
+      + proxy_protocol_v2                  = false
+      + region                             = "us-east-1"
+      + slow_start                         = 0
+      + tags_all                           = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + target_type                        = "ip"
+      + vpc_id                             = "vpc-0aaab081c69e51e91"
+
+      + health_check {
+          + enabled             = true
+          + healthy_threshold   = 2
+          + interval            = 5
+          + matcher             = "200"
+          + path                = "/health"
+          + port                = "traffic-port"
+          + protocol            = "HTTP"
+          + timeout             = 2
+          + unhealthy_threshold = 2
+        }
+
+      + stickiness (known after apply)
+
+      + target_failover (known after apply)
+
+      + target_group_health (known after apply)
+
+      + target_health_state (known after apply)
+    }
+
+  # aws_lb_target_group.service["cotizacion"] will be created
+  + resource "aws_lb_target_group" "service" {
+      + arn                                = (known after apply)
+      + arn_suffix                         = (known after apply)
+      + connection_termination             = (known after apply)
+      + deregistration_delay               = "5"
+      + id                                 = (known after apply)
+      + ip_address_type                    = (known after apply)
+      + lambda_multi_value_headers_enabled = false
+      + load_balancer_arns                 = (known after apply)
+      + load_balancing_algorithm_type      = (known after apply)
+      + load_balancing_anomaly_mitigation  = (known after apply)
+      + load_balancing_cross_zone_enabled  = (known after apply)
+      + name                               = "solventa-exp-cotizacion"
+      + name_prefix                        = (known after apply)
+      + port                               = 8080
+      + preserve_client_ip                 = (known after apply)
+      + protocol                           = "HTTP"
+      + protocol_version                   = (known after apply)
+      + proxy_protocol_v2                  = false
+      + region                             = "us-east-1"
+      + slow_start                         = 0
+      + tags_all                           = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + target_type                        = "ip"
+      + vpc_id                             = "vpc-0aaab081c69e51e91"
+
+      + health_check {
+          + enabled             = true
+          + healthy_threshold   = 2
+          + interval            = 5
+          + matcher             = "200"
+          + path                = "/health"
+          + port                = "traffic-port"
+          + protocol            = "HTTP"
+          + timeout             = 2
+          + unhealthy_threshold = 2
+        }
+
+      + stickiness (known after apply)
+
+      + target_failover (known after apply)
+
+      + target_group_health (known after apply)
+
+      + target_health_state (known after apply)
+    }
+
+  # aws_security_group.service["catalogo"] will be created
+  + resource "aws_security_group" "service" {
+      + arn                    = (known after apply)
+      + description            = "Managed by Terraform"
+      + egress                 = (known after apply)
+      + id                     = (known after apply)
+      + ingress                = (known after apply)
+      + name                   = "solventa-exp-catalogo"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + region                 = "us-east-1"
+      + revoke_rules_on_delete = false
+      + tags_all               = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + vpc_id                 = "vpc-0aaab081c69e51e91"
+    }
+
+  # aws_security_group.service["consulta"] will be created
+  + resource "aws_security_group" "service" {
+      + arn                    = (known after apply)
+      + description            = "Managed by Terraform"
+      + egress                 = (known after apply)
+      + id                     = (known after apply)
+      + ingress                = (known after apply)
+      + name                   = "solventa-exp-consulta"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + region                 = "us-east-1"
+      + revoke_rules_on_delete = false
+      + tags_all               = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + vpc_id                 = "vpc-0aaab081c69e51e91"
+    }
+
+  # aws_security_group.service["cotizacion"] will be created
+  + resource "aws_security_group" "service" {
+      + arn                    = (known after apply)
+      + description            = "Managed by Terraform"
+      + egress                 = (known after apply)
+      + id                     = (known after apply)
+      + ingress                = (known after apply)
+      + name                   = "solventa-exp-cotizacion"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + region                 = "us-east-1"
+      + revoke_rules_on_delete = false
+      + tags_all               = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + vpc_id                 = "vpc-0aaab081c69e51e91"
+    }
+
+  # aws_security_group.service["simulador"] will be created
+  + resource "aws_security_group" "service" {
+      + arn                    = (known after apply)
+      + description            = "Managed by Terraform"
+      + egress                 = (known after apply)
+      + id                     = (known after apply)
+      + ingress                = (known after apply)
+      + name                   = "solventa-exp-simulador"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + region                 = "us-east-1"
+      + revoke_rules_on_delete = false
+      + tags_all               = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + vpc_id                 = "vpc-0aaab081c69e51e91"
+    }
+
+  # aws_vpc_security_group_egress_rule.alb["consulta"] will be created
+  + resource "aws_vpc_security_group_egress_rule" "alb" {
+      + arn                          = (known after apply)
+      + from_port                    = 8080
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = (known after apply)
+      + region                       = "us-east-1"
+      + security_group_id            = "sg-09d3ff5f18458dd3c"
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 8080
+    }
+
+  # aws_vpc_security_group_egress_rule.alb["cotizacion"] will be created
+  + resource "aws_vpc_security_group_egress_rule" "alb" {
+      + arn                          = (known after apply)
+      + from_port                    = 8080
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = (known after apply)
+      + region                       = "us-east-1"
+      + security_group_id            = "sg-09d3ff5f18458dd3c"
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 8080
+    }
+
+  # aws_vpc_security_group_egress_rule.service["catalogo"] will be created
+  + resource "aws_vpc_security_group_egress_rule" "service" {
+      + arn                    = (known after apply)
+      + cidr_ipv4              = "0.0.0.0/0"
+      + id                     = (known after apply)
+      + ip_protocol            = "-1"
+      + region                 = "us-east-1"
+      + security_group_id      = (known after apply)
+      + security_group_rule_id = (known after apply)
+      + tags_all               = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_vpc_security_group_egress_rule.service["consulta"] will be created
+  + resource "aws_vpc_security_group_egress_rule" "service" {
+      + arn                    = (known after apply)
+      + cidr_ipv4              = "0.0.0.0/0"
+      + id                     = (known after apply)
+      + ip_protocol            = "-1"
+      + region                 = "us-east-1"
+      + security_group_id      = (known after apply)
+      + security_group_rule_id = (known after apply)
+      + tags_all               = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_vpc_security_group_egress_rule.service["cotizacion"] will be created
+  + resource "aws_vpc_security_group_egress_rule" "service" {
+      + arn                    = (known after apply)
+      + cidr_ipv4              = "0.0.0.0/0"
+      + id                     = (known after apply)
+      + ip_protocol            = "-1"
+      + region                 = "us-east-1"
+      + security_group_id      = (known after apply)
+      + security_group_rule_id = (known after apply)
+      + tags_all               = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_vpc_security_group_egress_rule.service["simulador"] will be created
+  + resource "aws_vpc_security_group_egress_rule" "service" {
+      + arn                    = (known after apply)
+      + cidr_ipv4              = "0.0.0.0/0"
+      + id                     = (known after apply)
+      + ip_protocol            = "-1"
+      + region                 = "us-east-1"
+      + security_group_id      = (known after apply)
+      + security_group_rule_id = (known after apply)
+      + tags_all               = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+    }
+
+  # aws_vpc_security_group_ingress_rule.api_services["consulta"] will be created
+  + resource "aws_vpc_security_group_ingress_rule" "api_services" {
+      + arn                          = (known after apply)
+      + from_port                    = 8080
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = "sg-09d3ff5f18458dd3c"
+      + region                       = "us-east-1"
+      + security_group_id            = (known after apply)
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 8080
+    }
+
+  # aws_vpc_security_group_ingress_rule.api_services["cotizacion"] will be created
+  + resource "aws_vpc_security_group_ingress_rule" "api_services" {
+      + arn                          = (known after apply)
+      + from_port                    = 8080
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = "sg-09d3ff5f18458dd3c"
+      + region                       = "us-east-1"
+      + security_group_id            = (known after apply)
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 8080
+    }
+
+  # aws_vpc_security_group_ingress_rule.database["catalogo"] will be created
+  + resource "aws_vpc_security_group_ingress_rule" "database" {
+      + arn                          = (known after apply)
+      + from_port                    = 5432
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = (known after apply)
+      + region                       = "us-east-1"
+      + security_group_id            = "sg-0d1b73ea159910ffe"
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 5432
+    }
+
+  # aws_vpc_security_group_ingress_rule.database["consulta"] will be created
+  + resource "aws_vpc_security_group_ingress_rule" "database" {
+      + arn                          = (known after apply)
+      + from_port                    = 5432
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = (known after apply)
+      + region                       = "us-east-1"
+      + security_group_id            = "sg-0d1b73ea159910ffe"
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 5432
+    }
+
+  # aws_vpc_security_group_ingress_rule.database["cotizacion"] will be created
+  + resource "aws_vpc_security_group_ingress_rule" "database" {
+      + arn                          = (known after apply)
+      + from_port                    = 5432
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = (known after apply)
+      + region                       = "us-east-1"
+      + security_group_id            = "sg-0d1b73ea159910ffe"
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 5432
+    }
+
+  # aws_vpc_security_group_ingress_rule.internal["cotizacion_catalogo"] will be created
+  + resource "aws_vpc_security_group_ingress_rule" "internal" {
+      + arn                          = (known after apply)
+      + from_port                    = 8080
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = (known after apply)
+      + region                       = "us-east-1"
+      + security_group_id            = (known after apply)
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 8080
+    }
+
+  # aws_vpc_security_group_ingress_rule.internal["cotizacion_simulador"] will be created
+  + resource "aws_vpc_security_group_ingress_rule" "internal" {
+      + arn                          = (known after apply)
+      + from_port                    = 8080
+      + id                           = (known after apply)
+      + ip_protocol                  = "tcp"
+      + referenced_security_group_id = (known after apply)
+      + region                       = "us-east-1"
+      + security_group_id            = (known after apply)
+      + security_group_rule_id       = (known after apply)
+      + tags_all                     = {
+          + "Environment" = "architecture-experiment"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "solventa-exp"
+        }
+      + to_port                      = 8080
+    }
+
+Plan: 59 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + dashboard_name            = "solventa-exp"
+  + database                  = {
+      + host       = "solventa-exp.cshaagmywe6m.us-east-1.rds.amazonaws.com"
+      + name       = "solventa"
+      + port       = 5432
+      + secret_arn = "arn:aws:secretsmanager:us-east-1:882567899411:secret:rds!db-6655cc8e-c866-4167-a96c-127cdaf62ae7-zZz6Yg"
+    }
+  + ecr_repositories          = {
+      + catalogo   = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/catalogo"
+      + consulta   = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/consulta"
+      + cotizacion = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/cotizacion"
+      + simulador  = "882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/simulador"
+    }
+  + entry_alb                 = {
+      + dns_name = "solventa-exp-entry-1785083628.us-east-1.elb.amazonaws.com"
+      + zone_id  = "Z35SXDOTRQ7X7K"
+    }
+  + entry_url                 = (known after apply)
+  + experiment_configuration  = {
+      + architecture           = "X86_64"
+      + availability_zone      = "us-east-1a"
+      + cluster                = "solventa-exp"
+      + database_class         = "db.t4g.micro"
+      + database_engine        = "16.13"
+      + dataset_version        = "synthetic-v1"
+      + db_pool_size           = 5
+      + external_delay_ms      = 50
+      + external_retries       = 0
+      + external_timeout_ms    = 150
+      + fargate_platform       = "1.4.0"
+      + image_digests          = {
+          + catalogo   = "sha256:a978e15eb0c15b6ed5f60460cb54aee55c851eeec1cb1c0c3ed5cc2eac8f8d13"
+          + consulta   = "sha256:4335ec4f2db0cc71ed0bc0b643e051a080ae2fb34d1eb65ff216354112197693"
+          + cotizacion = "sha256:3c7246c31ead655ee6c4405d6a00351724dbcaeda9f4bfd75bee7bdde330e036"
+          + simulador  = "sha256:ada718af52e512efeecf3807bbff14469124f7e09439ffbdb7bff5b225887b82"
+        }
+      + quotation_replicas     = 1
+      + quotation_target_group = (known after apply)
+      + region                 = "us-east-1"
+      + task_cpu               = 512
+      + task_definitions       = {
+          + catalogo   = (known after apply)
+          + consulta   = (known after apply)
+          + cotizacion = (known after apply)
+          + simulador  = (known after apply)
+        }
+      + task_memory            = 1024
+    }
+  + seed_task                 = {
+      + assign_public_ip = true
+      + cluster          = "arn:aws:ecs:us-east-1:882567899411:cluster/solventa-exp"
+      + security_group   = (known after apply)
+      + subnet           = "subnet-032bda4dd6b9d5b55"
+      + task_definition  = (known after apply)
+    }
+  + stop_quotation_policy_arn = (known after apply)
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

@@ -1,0 +1,6 @@
+aws_region = "us-east-1"
+name = "solventa-exp"
+vpc_cidr = "10.42.0.0/16"
+db_instance_class = "db.t4g.micro"
+postgres_version = "16"
+container_insights = false

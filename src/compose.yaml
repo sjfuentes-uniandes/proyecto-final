@@ -1,0 +1,88 @@
+x-database-env: &database-env
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_NAME: solventa
+  DB_USER: experiment
+  DB_PASSWORD: local-synthetic-only
+  DB_SSLMODE: disable
+  DB_POOL_SIZE: "5"
+  DATASET_VERSION: synthetic-v1
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: solventa
+      POSTGRES_USER: experiment
+      POSTGRES_PASSWORD: local-synthetic-only
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U experiment -d solventa"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - experiment-data:/var/lib/postgresql/data
+
+  seed:
+    build:
+      context: .
+      dockerfile: catalogo/Dockerfile
+    environment: *database-env
+    command: [python, -m, app.seed, --dataset, synthetic-v1]
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  catalogo:
+    build:
+      context: .
+      dockerfile: catalogo/Dockerfile
+    environment:
+      <<: *database-env
+      RULES_VERSION: synthetic-v1
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+
+  simulador:
+    build:
+      context: .
+      dockerfile: simulador/Dockerfile
+    environment:
+      RESPONSE_DELAY_MS: "50"
+      FAILURE_RATE: "0"
+
+  consulta:
+    build:
+      context: .
+      dockerfile: consulta/Dockerfile
+    environment: *database-env
+    ports:
+      - "127.0.0.1:8082:8080"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+
+  cotizacion:
+    build:
+      context: .
+      dockerfile: cotizacion/Dockerfile
+    environment:
+      <<: *database-env
+      CATALOG_URL: http://catalogo:8080
+      EXTERNAL_SOURCE_URL: http://simulador:8080
+      EXTERNAL_SOURCE_TIMEOUT_MS: "150"
+      EXTERNAL_SOURCE_RETRIES: "0"
+      RULES_CACHE_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      catalogo:
+        condition: service_healthy
+      simulador:
+        condition: service_healthy
+
+volumes:
+  experiment-data:
