@@ -1,0 +1,10 @@
+docker buildx build --platform linux/amd64 --provenance=false --sbom=false -f src/cotizacion/Dockerfile -t 882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/cotizacion:latest --load src
+docker buildx build --platform linux/amd64 --provenance=false --sbom=false -f src/consulta/Dockerfile -t 882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/consulta:latest --load src
+docker buildx build --platform linux/amd64 --provenance=false --sbom=false -f src/catalogo/Dockerfile -t 882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/catalogo:latest --load src
+docker buildx build --platform linux/amd64 --provenance=false --sbom=false -f src/simulador/Dockerfile -t 882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/simulador:latest --load src
+
+
+docker push 882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/catalogo:latest
+docker push 882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/consulta:latest
+docker push 882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/cotizacion:latest
+docker push 882567899411.dkr.ecr.us-east-1.amazonaws.com/solventa-exp/simulador:latest
