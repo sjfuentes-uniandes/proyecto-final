@@ -262,8 +262,6 @@ La duración máxima aproximada es 82 min 25 s por repetición: unas 4 h 7 min d
 
 Una meseta aprueba con p95 ≤ 250 ms, errores ≤ 1 %, cero iteraciones descartadas, volumen completo —se tolera una solicitud por discretización— y al menos 99 % del volumen esperado exitoso. Los errores incluyen timeouts, respuestas distintas de 201 y cuerpos incompatibles con el contrato sintético. `quotes_latency_ms` incluye conexión/TLS y solicitudes fallidas; `quotes_http_duration_ms` es una métrica adicional de diagnóstico.
 
-El corte de protección es distinto del SLA: en rampas y mesetas, si después de los primeros 120 s de la fase sus **errores acumulados superan 50 %**, k6 detiene la repetición. No es una ventana móvil. También corta por iteraciones descartadas después de los primeros 30 s de la fase. Incumplir solo el p95 no dispara ese corte. Los niveles posteriores quedan sin medir; una meseta interrumpida no demuestra capacidad.
-
 Cada repetición se guarda en `results/auto-002/autoscaling/run-N/`:
 
 | Archivo | Evidencia |
@@ -314,29 +312,3 @@ Genera **`report.md` y `autoscaling-report.json`**. También puede ejecutarse an
 Las medianas del informe indican cuántas repeticiones completas las sustentan; no presentar una mediana de una sola como resultado de tres. `None` o una fase no alcanzada representan evidencia insuficiente, no capacidad cero. El máximo observado de tareas no prueba por sí solo que se cumplió el SLA. Este diseño no calcula una ganancia de capacidad entre configuraciones fijas de una y tres réplicas.
 
 La política puede alcanzar su máximo y aun así saturarse. Revisar también el generador, RDS y los servicios que no escalan. La intermitencia de conectividad observada a baja carga puede afectar resultados; el informe no atribuye automáticamente todos los fallos a CPU o autoscaling.
-
-## Validar la configuración sin generar carga
-
-```bash
-k6 inspect -e MODE=autoscaling -e BASE_URL=https://example.invalid -e REPLICAS=1 \
-  experiments/exp-esc-01/scalability.js
-python3 experiments/exp-esc-01/run.py --help
-python3 experiments/exp-esc-01/collect.py --help
-python3 experiments/exp-esc-01/summarize.py --help
-```
-
-`k6 inspect` interpreta las opciones sin ejecutar solicitudes. Usar `run.py` para las mediciones de la serie, ya que captura las precondiciones y evidencias AWS.
-
-## Decisiones para la serie auto-002
-
-La serie anterior tuvo solo dos minutos sobre 60 % de CPU y no activó la alarma de tres períodos. Se reduce el objetivo a 35 % porque la meseta de 1.000 RPM alcanzó alrededor de 37 % sin pérdida masiva de disponibilidad; es una hipótesis para anticipar expansión, no una garantía. Se agregan mesetas a 2.000 y 3.000 RPM y rampas de cinco minutos para observar la transición. El máximo permanece en tres tareas. El costo de cómputo puede aumentar por escalar antes y por la mayor duración de la serie.
-
-AWS administra las alarmas de target tracking; no se modifican manualmente. Véase [documentación de ECS](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-autoscaling-targettracking.html). Se mantienen el p95 de 250 ms, el corte por errores y las comprobaciones de salud para no ocultar degradación. No se cambia el tamaño de tareas, imágenes ni pool: primero medir si anticipar expansión evita el reemplazo observado.
-
-Antes de cargar, `scaling-before.json` verifica en AWS los límites, la política CPU y las acciones de las alarmas. Si no coinciden o no pueden consultarse, el runner bloquea la ejecución. Añadir permisos de lectura `cloudwatch:DescribeAlarms`, `cloudwatch:DescribeAlarmHistory`, `application-autoscaling:DescribeScalableTargets` y `application-autoscaling:DescribeScalingPolicies` a los ya documentados.
-
-`summary.json` agrega `client_timings` por meseta: bloqueo, conexión TCP, TLS, espera HTTP y recepción. Los percentiles no se restan ni suman entre sí. El recolector agrega CPU máxima, latencias y créditos de RDS, errores de conexión ALB y latencias/errores agregados de API Gateway. Las métricas API son de toda la API, por lo que no debe haber otros clientes durante la prueba. Cada consulta fallida conserva `collection_error`; una serie vacía nunca se interpreta como cero.
-
-El recolector guarda configuración actual e historial de alarmas, además de actividades de escalamiento. Ejecutarlo nuevamente 15 minutos después del final para completar el margen de historial de recuperación. La configuración posterior se identifica como tal y no sustituye `scaling-before.json`. Las actividades pueden incluir eventos ajenos a la ventana; correlacionar timestamps. Conservar la ubicación/red del generador en la nota del ensayo para justificar la latencia externa.
-
-Aplicar un plan nuevo de `infra/services` antes de auto-002. No hacen falta nuevas imágenes por estos cambios. Los resultados de auto-001 permanecen como diagnóstico del diseño anterior y no se mezclan en sus medianas.

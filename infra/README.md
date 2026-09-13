@@ -77,24 +77,6 @@ terraform -chdir=infra/base plan -destroy -out=destroy.tfplan
 terraform -chdir=infra/base apply destroy.tfplan
 ```
 
-## Migración desde la estructura anterior
-
-Esta reorganización de archivos **no migra un estado desplegado**. No se encontró un `infra/terraform.tfstate` local al realizarla; se conservaron los archivos adicionales existentes, incluido `output.txt`. Si ya desplegaste desde otro equipo/backend, recuperar primero ese estado. No aplicar ambas raíces como ambientes nuevos sobre recursos existentes con el mismo nombre.
-
-Para migrar un estado local anterior, detener operaciones concurrentes, guardar una copia íntegra fuera del directorio de trabajo y distribuir sus direcciones entre los dos estados. Las direcciones de recursos conservan sus nombres; cambió únicamente la raíz que los administra. La tabla de recursos de arriba indica el propietario. `terraform state list` permite consultar direcciones y `terraform state mv` mover cada recurso, por ejemplo, desde la raíz del repositorio:
-
-```bash
-# Ejemplos de transferencia de estado; ejecutar solo con el estado anterior respaldado.
-terraform state mv -state=infra/terraform.tfstate -state-out=infra/base/terraform.tfstate \
-  'aws_vpc.experiment' 'aws_vpc.experiment'
-terraform state mv -state=infra/terraform.tfstate -state-out=infra/services/terraform.tfstate \
-  'aws_ecs_service.quotation' 'aws_ecs_service.quotation'
-```
-
-Estos dos comandos son ejemplos, no una migración completa. Transferir **todos** los recursos administrados existentes al propietario correcto, incluyendo recursos con `for_each`; no copiar el mismo recurso a ambos estados ni eliminar recursos AWS. Los bloques data se pueden volver a consultar. Con un backend remoto, usar el procedimiento de transferencia apropiado al backend, no asumir que `-state` mueve su estado remoto.
-
-Antes de planificar services, revisar un plan de base `-refresh-only` y aplicarlo para publicar el nuevo output `foundation`. Después revisar planes normales de ambas raíces: no deben proponer recreaciones o destrucciones inesperadas. Los archivos `terraform.tfvars` anteriores deben separarse conforme a los dos ejemplos; retirar `deploy_services`. No reutilizar planes guardados con la estructura anterior. La migración debe revisarse con el estado real; no se ha ejecutado automáticamente.
-
 ## Validación sin desplegar
 
 ```bash
