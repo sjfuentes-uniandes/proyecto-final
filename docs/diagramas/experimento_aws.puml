@@ -6,10 +6,10 @@ cloud "Amazon API Gateway\nHTTP API / HTTPS" as API
 rectangle "VPC" {
   node "ALB público\nSubredes en zonas A y B" as ALB
   node "ECS Fargate - zona A\nSubred pública / IPv4 por tarea" {
-    component "Cotización\n1, 2 o 3 tareas" as Quote
-    component "Consulta" as Query
-    component "Catálogo" as Catalog
-    component "Simulador\n50 ms" as Stub
+    component "Cotización\n1 a 10 tareas\nautoescalado CPU 40%" as Quote
+    component "Consulta\n1 a 3 tareas\nautoescalado CPU 50%" as Query
+    component "Catálogo\n1 a 3 tareas\nautoescalado CPU 50%" as Catalog
+    component "Simulador\n50 ms\n1 a 3 tareas\nautoescalado CPU 50%" as Stub
   }
   database "RDS PostgreSQL\nSingle-AZ / zona A\nSubred aislada" as DB
   node "Internet Gateway\nSin NAT ni EIP" as IGW
@@ -35,5 +35,9 @@ note bottom of IGW
 Internet Gateway no tiene cargo propio.
 IPv4 públicas, transferencia y servicios
 pueden generar cargos.
+end note
+note bottom of Stub
+Cada dependencia escala por su propia CPU,
+en lugar de mantenerse en una sola tarea fija.
 end note
 @enduml
