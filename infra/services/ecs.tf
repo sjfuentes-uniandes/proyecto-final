@@ -131,7 +131,10 @@ resource "aws_ecs_task_definition" "service" {
 }
 
 resource "aws_ecs_service" "backend" {
-  for_each                           = { for name, config in local.deployed_services : name => config if contains(["consulta", "catalogo", "simulador"], name) }
+  for_each = { for name, config in local.deployed_services : name => config if contains(["consulta", "catalogo", "simulador"], name) }
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
   name                               = each.key
   cluster                            = local.base.cluster.id
   task_definition                    = aws_ecs_task_definition.service[each.key].arn
@@ -192,7 +195,10 @@ resource "aws_ecs_service" "backend" {
 }
 
 resource "aws_ecs_service" "quotation" {
-  for_each                           = { for name, config in local.deployed_services : name => config if contains(["cotizacion"], name) }
+  for_each = { for name, config in local.deployed_services : name => config if contains(["cotizacion"], name) }
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
   name                               = each.key
   cluster                            = local.base.cluster.id
   task_definition                    = aws_ecs_task_definition.service[each.key].arn

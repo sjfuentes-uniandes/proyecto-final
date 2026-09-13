@@ -13,9 +13,24 @@ output "ecr_repositories" {
 
 output "experiment_configuration" {
   value = {
-    region                 = local.base.region
-    availability_zone      = local.base.availability_zone
-    cluster                = local.base.cluster.name
+    region            = local.base.region
+    availability_zone = local.base.availability_zone
+    cluster           = local.base.cluster.name
+    autoscaling = {
+      enabled            = var.quotation_autoscaling_enabled
+      min_replicas       = var.quotation_replicas
+      max_replicas       = var.quotation_autoscaling_enabled ? var.quotation_max_replicas : var.quotation_replicas
+      cpu_target         = var.quotation_cpu_target
+      scale_out_cooldown = 30
+      scale_in_cooldown  = 300
+    }
+    backend_autoscaling = {
+      enabled      = var.backend_autoscaling_enabled
+      max_replicas = var.backend_autoscaling_enabled ? var.backend_max_replicas : 1
+      cpu_target   = var.backend_cpu_target
+    }
+    database_identifier    = local.base.database.identifier
+    api_id                 = aws_apigatewayv2_api.experiment.id
     quotation_replicas     = var.quotation_replicas
     task_cpu               = var.task_cpu
     task_memory            = var.task_memory

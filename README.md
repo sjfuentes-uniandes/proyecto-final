@@ -19,6 +19,16 @@ Tareas Fargate con IP pública → Internet Gateway → ECR, secretos y logs
 
 El montaje utiliza una zona para las tareas y RDS, y subredes en dos zonas para el ALB. No crea NAT Gateway ni EIP. Las IP públicas, ALB, Fargate, API Gateway y RDS generan costos; el despliegue `infra/base` también crea recursos de pago. La entrada está habilitada sin autenticación para datos sintéticos y el ALB admite acceso directo; medir siempre a través de API Gateway.
 
+Atajos de `make` que envuelven los mismos comandos de esta guía (requieren las credenciales y herramientas de la sección 1-2):
+
+| Comando | Equivale a |
+| --- | --- |
+| `make deploy` | Secciones 4-7: `infra/base` (init/apply), build+push de las cuatro imágenes con digests, `infra/services` (init/apply) y el seed inicial. No incluye espera de servicios ni smoke. |
+| `make experiment-clean-up` | Reset transaccional de la BD antes de cada repetición de EXP-ESC-01 ([guía completa](experiments/exp-esc-01/README.md#2-recuperar-el-punto-inicial-antes-de-cada-reset)). |
+| `make destroy` | Sección 12, en orden inverso: destruye `infra/services` y luego `infra/base` (los repositorios ECR usan `force_delete`, no requieren vaciarse a mano). |
+
+`make deploy` y `make destroy` no piden ninguna confirmación propia: cada `terraform apply` muestra su plan y hace la única pregunta del script, la de Terraform ("Do you want to perform these actions?" / para destruir). `SOLVENTA_YES=1` omite esas preguntas para ejecución no interactiva.
+
 ### 1. Requisitos
 
 Instalar en el equipo:
@@ -282,7 +292,7 @@ terraform -chdir=infra/services output -json experiment_configuration
 
 Los logs de seed se guardan en el grupo de catálogo, en un stream que comienza con `app/seed/`. En CloudWatch → Dashboards, abrir el nombre indicado por Terraform.
 
-Para cambiar el escenario, editar **solo** `quotation_replicas` en `infra/services/terraform.tfvars`, revisar un nuevo plan y aplicarlo:
+Cotización, consulta, catálogo y simulador tienen cada uno una única política de target tracking por CPU (bidireccional: escala hacia afuera y hacia adentro con la misma política). Para cotización: `quotation_replicas` es el mínimo/inicio, `quotation_max_replicas = 3` es el máximo y `quotation_cpu_target = 40` es el objetivo de CPU; `quotation_autoscaling_enabled = true` la activa, con `false` mínimo y máximo quedan en `quotation_replicas` para los escenarios fijos del PDF. `consulta`, `catalogo` y `simulador` usan `backend_autoscaling_enabled`, `backend_max_replicas = 3` y `backend_cpu_target` de la misma forma: sin esto quedan fijos en 1 réplica aunque cotización escale, y `simulador` en particular puede volverse el cuello de botella compartido por todas las réplicas de cotización (ver EXP-ESC-01 auto-002, donde llegó a ~85 % de CPU sin autoescalado propio). Antes se probó combinar la política de CPU con una segunda de `ALBRequestCountPerTarget` (scale-out-only) porque la CPU se quedaba baja mientras el servicio esperaba en el pool de conexiones/latencia externa; con `task_cpu`/`db_pool_size` ya ajustados la CPU sola refleja la carga real, y una sola política evita el conflicto que hacía oscilar a cotización entre 5 y 6 tareas bajo carga sostenida. Revisar el plan y aplicarlo:
 
 ```bash
 terraform -chdir=infra/services plan -out=scenario.tfplan
@@ -292,7 +302,7 @@ aws ecs wait services-stable --cluster "$SOLVENTA_CLUSTER" --services cotizacion
 
 | Experimento | Réplicas de cotización | Medición posterior |
 | --- | --- | --- |
-| EXP-ESC-01 | 1, luego 2 y 3 | Rampa de 500 a 50.000 solicitudes/minuto; p95 ≤ 250 ms y errores ≤ 1 %. |
+| EXP-ESC-01 | Automático 1–3; fijo 1/2/3 opcional | Rampa de 500 a 50.000 solicitudes/minuto; p95 ≤ 250 ms y errores ≤ 1 %. |
 | EXP-DIS-01 | 2 | Detener una tarea bajo carga; éxito ≥ 99 %, p95 ≤ 500 ms, recuperación ≤ 120 s. |
 | EXP-LAT-01 | 1 | 500 solicitudes/minuto durante 10 minutos; p95 de cotización ≤ 250 ms y consulta ≤ 150 ms. |
 
@@ -333,7 +343,7 @@ terraform -chdir=infra/services plan -destroy -out=destroy.tfplan
 terraform -chdir=infra/services apply destroy.tfplan
 ```
 
-3. En la consola ECR de la cuenta/región correctas, abrir exclusivamente los cuatro repositorios listados por `terraform -chdir=infra/base output -json ecr_repositories` y eliminar sus imágenes si ya no se necesitan. ECR no permite destruir estos repositorios mientras contengan imágenes; Terraform no usa `force_delete`.
+3. Los repositorios ECR usan `force_delete = true`: no hace falta vaciarlos manualmente antes de destruir la base. Si se quiere conservar alguna imagen, copiarla a otro repositorio antes de este paso.
 4. Revisar el plan de eliminación de la base y ejecutarlo:
 
 ```bash
@@ -355,7 +365,7 @@ Verifica ECS/ALB, digests, consulta, creación y lectura de tres cotizaciones, e
 
 ## Experimento 1 con k6
 
-El código de EXP-ESC-01 está en [`experiments/exp-esc-01/`](experiments/exp-esc-01/README.md). Incluye rampas de 500 a 50.000 solicitudes/minuto, tres repeticiones por número de réplicas, umbrales por nivel, captura de configuración AWS y consolidación de medianas. Seguir su guía después de levantar y verificar este ambiente.
+El código de EXP-ESC-01 está en [`experiments/exp-esc-01/`](experiments/exp-esc-01/README.md). Incluye rampas de 500 a 50.000 solicitudes/minuto y tres repeticiones explícitas por número de réplicas (`--repetition 1`, `2`, `3`), con preparación de la BD entre ejecuciones, umbrales por nivel, captura de configuración AWS y consolidación de medianas. Seguir su guía después de levantar y verificar este ambiente.
 
 ## Validación sin crear recursos
 
@@ -441,3 +451,5 @@ make watch-diagramas
 ```
 
 Las imágenes generadas quedan listas para versionar y también pueden mostrarse en documentación o README.
+
+La [guía de EXP-ESC-01](experiments/exp-esc-01/README.md#ejecución-recomendada-escalamiento-automático) incluye rampas progresivas, corte por errores, captura del escalamiento y los comandos de reset de la BD entre repeticiones.

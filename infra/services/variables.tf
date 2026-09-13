@@ -18,7 +18,7 @@ variable "quotation_replicas" {
 
 variable "task_cpu" {
   type    = number
-  default = 512
+  default = 1024
   validation {
     condition     = contains([256, 512, 1024, 2048, 4096], var.task_cpu)
     error_message = "CPU permitida: 256, 512, 1024, 2048 o 4096."
@@ -28,7 +28,7 @@ variable "task_cpu" {
 variable "task_memory" {
   description = "Memoria total de la tarea, incluido el proxy Service Connect."
   type        = number
-  default     = 1024
+  default     = 2048
   validation {
     condition = contains(lookup({
       "256"  = [512, 1024, 2048]
@@ -48,8 +48,11 @@ variable "health_check_command" {
 }
 
 variable "db_pool_size" {
+  # 8 por tarea: con quotation_max_replicas=3 + backend_max_replicas=3 (consulta
+  # y catalogo, database=true) el peor caso es 8*(3+3+3)=72 conexiones, bajo el
+  # límite de db.t4g.micro (~112 con la fórmula por defecto de RDS Postgres).
   type    = number
-  default = 5
+  default = 8
   validation {
     condition     = var.db_pool_size >= 1 && floor(var.db_pool_size) == var.db_pool_size
     error_message = "El pool debe ser un entero positivo."
@@ -66,4 +69,54 @@ variable "base_state_path" {
   description = "Ruta absoluta opcional al estado local de base; por defecto ../base/terraform.tfstate."
   type        = string
   default     = null
+}
+
+variable "quotation_autoscaling_enabled" {
+  description = "Permite escalar cotización por CPU; false fija min/max en quotation_replicas."
+  type        = bool
+  default     = true
+}
+variable "quotation_max_replicas" {
+  # El experimento EXP-ESC-01 solo contempla 1 a 3 tareas de cotización.
+  type    = number
+  default = 3
+  validation {
+    condition     = var.quotation_max_replicas >= var.quotation_replicas && var.quotation_max_replicas <= 20 && floor(var.quotation_max_replicas) == var.quotation_max_replicas
+    error_message = "El máximo debe ser entero, al menos quotation_replicas y no mayor que 20."
+  }
+}
+variable "quotation_cpu_target" {
+  # Bajado de 50 a 40: en auto-002 la CPU subió de forma sostenida en los
+  # últimos escalones de carga: reaccionar antes evita saturar una tarea
+  # mientras se espera a que la política de solicitudes dispare el escalado.
+  type    = number
+  default = 40
+  validation {
+    condition     = var.quotation_cpu_target >= 20 && var.quotation_cpu_target <= 80
+    error_message = "Usar un objetivo de CPU entre 20 y 80 %."
+  }
+}
+variable "backend_autoscaling_enabled" {
+  description = "Habilita autoescalado por CPU para consulta, catálogo y simulador (no solo cotización)."
+  type        = bool
+  default     = true
+}
+variable "backend_max_replicas" {
+  # simulador (sin autoescalado hasta ahora) llegó a ~85 % de CPU promedio en
+  # auto-002 mientras cotización ya escalaba: es una dependencia compartida
+  # por todas las réplicas de cotización y puede volverse el cuello de botella.
+  type    = number
+  default = 3
+  validation {
+    condition     = var.backend_max_replicas >= 1 && var.backend_max_replicas <= 20 && floor(var.backend_max_replicas) == var.backend_max_replicas
+    error_message = "El máximo debe ser entero, al menos 1 y no mayor que 20."
+  }
+}
+variable "backend_cpu_target" {
+  type    = number
+  default = 50
+  validation {
+    condition     = var.backend_cpu_target >= 20 && var.backend_cpu_target <= 80
+    error_message = "Usar un objetivo de CPU entre 20 y 80 %."
+  }
 }

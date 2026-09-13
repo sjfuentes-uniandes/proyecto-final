@@ -41,14 +41,21 @@ async def catalog(request):
         return value
 
 
-@app.post("/cotizaciones", status_code=201)
-async def quote(body: QuoteInput, request: Request):
-    rules = await catalog(request)
+async def source(request):
     async with measure(request, "simulador"):
         # No retener una conexión SQL durante la espera externa.
         response = await request.app.state.http.get(
             f"{SOURCE}/fuente", headers={HEADER: request.state.correlation}, timeout=TIMEOUT)
         response.raise_for_status()
+        return response
+
+
+@app.post("/cotizaciones", status_code=201)
+async def quote(body: QuoteInput, request: Request):
+    # catalog() no depende de la fuente externa; solo importa con caché fría
+    # (RULES_CACHE_ENABLED=false o la primera solicitud de la tarea), ya que
+    # con caché tibia catalog() no hace E/S real.
+    rules, response = await asyncio.gather(catalog(request), source(request))
     payload = {
         "id": str(uuid4()), "product_id": body.product_id,
         "dataset": DATASET, "rules_version": rules["version"],

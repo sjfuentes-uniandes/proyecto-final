@@ -1,0 +1,23 @@
+{
+  "rates_rpm": [
+    500,
+    1000,
+    2000,
+    3000,
+    5000,
+    10000,
+    25000,
+    50000
+  ],
+  "warmup_seconds": 60,
+  "ramp_seconds": 300,
+  "hold_seconds": 300,
+  "grace_seconds": 5,
+  "timeout_seconds": 2,
+  "preallocated_vus": 2000,
+  "max_vus": 2000,
+  "p95_ms": 250,
+  "max_error_rate": 0.01,
+  "abort_error_rate": 0.5,
+  "abort_after_seconds": 120
+}
