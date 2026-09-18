@@ -367,6 +367,8 @@ Verifica ECS/ALB, digests, consulta, creación y lectura de tres cotizaciones, e
 
 El código de EXP-ESC-01 está en [`experiments/exp-esc-01/`](experiments/exp-esc-01/README.md). Incluye rampas de 500 a 50.000 solicitudes/minuto y tres repeticiones explícitas por número de réplicas (`--repetition 1`, `2`, `3`), con preparación de la BD entre ejecuciones, umbrales por nivel, captura de configuración AWS y consolidación de medianas. Seguir su guía después de levantar y verificar este ambiente.
 
+Las guías y runners de los experimentos de esta entrega están en [`experiments/exp-lat-01/`](experiments/exp-lat-01/README.md) y [`experiments/exp-dis-01/`](experiments/exp-dis-01/README.md). EXP-DIS-01 requiere una identidad autorizada para detener una tarea de cotización; los demás accesos de observación pueden ser de solo lectura.
+
 ## Validación sin crear recursos
 
 Para revisar exclusivamente el código, sin desplegar ni ejecutar pruebas de carga:

@@ -1,0 +1,13 @@
+{
+  "rate_rpm": 150,
+  "baseline_seconds": 180,
+  "perturbation_seconds": 180,
+  "timeout_seconds": 2,
+  "preallocated_vus": 20,
+  "max_vus": 60,
+  "p95_ms": 500,
+  "max_error_rate": 0.01,
+  "min_success_rate": 0.99,
+  "rto_seconds": 120,
+  "poll_seconds": 5
+}

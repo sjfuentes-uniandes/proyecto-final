@@ -15,8 +15,8 @@ watch-diagramas:
 deploy:
 	@./scripts/deploy.sh
 
-# Reset transaccional de la BD antes de cada repetición de EXP-ESC-01
-# (experiments/exp-esc-01/README.md, secciones 2-3).
+# Reset transaccional de la BD antes de cada repetición de EXP-ESC-01,
+# EXP-LAT-01 o EXP-DIS-01 (ver guía de EXP-ESC-01, secciones 2-3).
 experiment-clean-up:
 	@./scripts/experiment_reset.sh
 

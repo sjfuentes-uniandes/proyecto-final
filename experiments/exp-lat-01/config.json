@@ -1,0 +1,10 @@
+{
+  "rate_rpm_per_endpoint": 500,
+  "duration_seconds": 600,
+  "timeout_seconds": 2,
+  "preallocated_vus": 40,
+  "max_vus": 120,
+  "quote_p95_ms": 250,
+  "consultation_p95_ms": 150,
+  "max_error_rate": 0.01
+}

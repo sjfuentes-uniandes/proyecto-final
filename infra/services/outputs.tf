@@ -29,23 +29,52 @@ output "experiment_configuration" {
       max_replicas = var.backend_autoscaling_enabled ? var.backend_max_replicas : 1
       cpu_target   = var.backend_cpu_target
     }
-    database_identifier    = local.base.database.identifier
-    api_id                 = aws_apigatewayv2_api.experiment.id
-    quotation_replicas     = var.quotation_replicas
-    task_cpu               = var.task_cpu
-    task_memory            = var.task_memory
-    image_digests          = var.image_digests
-    task_definitions       = { for name, task in aws_ecs_task_definition.service : name => task.arn }
-    fargate_platform       = "1.4.0"
-    architecture           = "X86_64"
-    database_engine        = local.base.database.engine_version
-    database_class         = local.base.database.instance_class
-    db_pool_size           = var.db_pool_size
-    dataset_version        = "synthetic-v1"
-    external_delay_ms      = 50
-    external_timeout_ms    = 150
-    external_retries       = 0
-    quotation_target_group = aws_lb_target_group.service["cotizacion"].arn
+    database_identifier       = local.base.database.identifier
+    api_id                    = aws_apigatewayv2_api.experiment.id
+    quotation_replicas        = var.quotation_replicas
+    task_cpu                  = var.task_cpu
+    task_memory               = var.task_memory
+    image_digests             = var.image_digests
+    task_definitions          = { for name, task in aws_ecs_task_definition.service : name => task.arn }
+    fargate_platform          = "1.4.0"
+    architecture              = "X86_64"
+    database_engine           = local.base.database.engine_version
+    database_class            = local.base.database.instance_class
+    db_pool_size              = var.db_pool_size
+    dataset_version           = "synthetic-v1"
+    external_delay_ms         = 50
+    external_timeout_ms       = 150
+    external_retries          = 0
+    quotation_target_group    = aws_lb_target_group.service["cotizacion"].arn
+    consultation_target_group = aws_lb_target_group.service["consulta"].arn
+    target_groups = { for name, group in aws_lb_target_group.service : name => {
+      arn                  = group.arn
+      arn_suffix           = group.arn_suffix
+      deregistration_delay = group.deregistration_delay
+      health_check = {
+        path                = group.health_check[0].path
+        interval            = group.health_check[0].interval
+        timeout             = group.health_check[0].timeout
+        healthy_threshold   = group.health_check[0].healthy_threshold
+        unhealthy_threshold = group.health_check[0].unhealthy_threshold
+      }
+    } }
+    alb = {
+      dns_name   = local.base.alb.dns_name
+      arn_suffix = local.base.alb.arn_suffix
+    }
+    log_groups = merge(
+      { for name, group in aws_cloudwatch_log_group.service : name => group.name },
+      { service_connect = aws_cloudwatch_log_group.proxy.name, api_gateway = aws_cloudwatch_log_group.api.name,
+      ecs_events = local.base.events_log_group }
+    )
+    container_health_check = {
+      command      = var.health_check_command
+      interval     = 5
+      timeout      = 2
+      retries      = 2
+      start_period = 30
+    }
   }
 }
 
