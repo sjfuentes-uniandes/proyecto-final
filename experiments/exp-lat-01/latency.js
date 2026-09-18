@@ -46,12 +46,14 @@ export function consulta() { request('consulta'); }
 
 export function handleSummary(data) {
   const endpointSummary = Object.fromEntries(Object.keys(endpoints).map((name) => {
-    const at = (metric) => data.metrics[`${metric}{scenario:${name}}`]?.values || {};
+    // Cada endpoint tiene métricas propias; los Counter no heredan de forma
+    // consistente el tag de escenario en k6 2.x, así que se leen sin tag.
+    const at = (metric) => data.metrics[metric]?.values || {};
     const completed = at(`${name}_completed`).count || 0;
     const expected = Math.floor(config.rate_rpm_per_endpoint * config.duration_seconds / 60);
     const errors = at(`${name}_error_rate`).rate;
     const latency = at(`${name}_latency_ms`);
-    const dropped = at('dropped_iterations').count || 0;
+    const dropped = data.metrics[`dropped_iterations{scenario:${name}}`]?.values?.count || 0;
     const p95Limit = name === 'cotizacion' ? config.quote_p95_ms : config.consultation_p95_ms;
     const valid_load = completed >= expected - 1 && dropped === 0 && Number.isFinite(errors);
     return [name, { expected, completed, successful: at(`${name}_successful`).count || 0, dropped, error_rate: errors ?? null,

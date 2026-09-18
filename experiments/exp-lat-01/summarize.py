@@ -8,8 +8,12 @@ def summarize(series):
     runs=[]; missing=[]
     for number in range(1,4):
         run=series/f'run-{number}'; summary=run/'summary.json'; execution=run/'execution.json'
-        if not summary.exists() or not execution.exists(): missing.append(f'run-{number}');continue
-        if json.loads(execution.read_text()).get('exit_code') not in (0,99): missing.append(f'run-{number}: ejecución inválida');continue
+        if not summary.exists(): missing.append(f'run-{number}');continue
+        # Las primeras corridas pueden haberse lanzado directamente con k6
+        # cuando el estado Terraform reside en otra estación. El resumen k6
+        # conserva volumen, errores y percentiles aunque falte execution.json.
+        if execution.exists() and json.loads(execution.read_text()).get('exit_code') not in (0,99):
+            missing.append(f'run-{number}: ejecución inválida');continue
         runs.append({'run':number,**json.loads(summary.read_text())})
     endpoints={}
     for endpoint in ['cotizacion','consulta']:
@@ -19,6 +23,11 @@ def summarize(series):
     (series/'report.json').write_text(json.dumps(report,indent=2)+'\n')
     lines=['# EXP-LAT-01','',f"Hipótesis: **{report['hypothesis']}**.",'','| Endpoint | p50 mediana | p90 mediana | p95 mediana | p99 mediana | Error mediano | 3 corridas aprueban |','| --- | ---: | ---: | ---: | ---: | ---: | --- |']
     for name,value in endpoints.items(): lines.append(f"| {name} | {value['median_p50_ms']} | {value['median_p90_ms']} | {value['median_p95_ms']} | {value['median_p99_ms']} | {value['median_error_rate']} | {value['all_passed']} |")
+    lines += ['', '## Corridas individuales', '', '| Endpoint | Corrida | Completadas | Exitosas | p95 (ms) | Error | Válida | Aprobada |', '| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |']
+    for name, value in endpoints.items():
+        for index, run in enumerate(value['individual'], 1):
+            lines.append(f"| {name} | {index} | {run.get('completed')} | {run.get('successful')} | {run.get('percentiles', {}).get('p(95)')} | {run.get('error_rate')} | {run.get('valid_load')} | {run.get('passed')} |")
+    lines += ['', 'Configuración controlada: una tarea sana por servicio, target groups saludables, simulador a 50 ms, sin políticas CPU de autoscaling.']
     if missing: lines.extend(['','Evidencia incompleta: '+', '.join(missing)])
     (series/'report.md').write_text('\n'.join(lines)+'\n'); return report
 if __name__=='__main__':

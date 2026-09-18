@@ -7,7 +7,16 @@ const completed = new Counter('quotes_completed'), successful = new Counter('quo
 const errors = new Rate('quotes_error_rate'), latency = new Trend('quotes_latency_ms', true), outcomes = new Counter('quotes_outcomes');
 const scenario = (name, startTime, duration) => ({ executor: 'constant-arrival-rate', exec: 'quote', startTime, duration: `${duration}s`, rate: config.rate_rpm, timeUnit: '1m', preAllocatedVUs: config.preallocated_vus, maxVUs: config.max_vus, gracefulStop: '5s', tags: { phase: name } });
 export const options = { scenarios: { baseline: scenario('baseline', '0s', config.baseline_seconds), perturbation: scenario('perturbation', `${config.baseline_seconds}s`, config.perturbation_seconds) },
-  thresholds: { 'quotes_latency_ms{scenario:perturbation}': [`p(95)<=${config.p95_ms}`], 'quotes_error_rate{scenario:perturbation}': [`rate<=${config.max_error_rate}`], 'dropped_iterations{scenario:perturbation}': ['count==0'] },
+  // k6 2.x solo calcula una submétrica por tag si existe un threshold que la referencia; sin esto,
+  // quotes_completed/quotes_successful y toda la fase baseline quedan ausentes de data.metrics.
+  thresholds: {
+    'quotes_completed{scenario:baseline}': ['count>=0'], 'quotes_successful{scenario:baseline}': ['count>=0'],
+    'quotes_error_rate{scenario:baseline}': ['rate>=0'], 'quotes_latency_ms{scenario:baseline}': ['p(95)>=0'],
+    'dropped_iterations{scenario:baseline}': ['count>=0'],
+    'quotes_completed{scenario:perturbation}': ['count>=0'], 'quotes_successful{scenario:perturbation}': ['count>=0'],
+    'quotes_latency_ms{scenario:perturbation}': [`p(95)<=${config.p95_ms}`], 'quotes_error_rate{scenario:perturbation}': [`rate<=${config.max_error_rate}`],
+    'dropped_iterations{scenario:perturbation}': ['count==0'],
+  },
   summaryTrendStats: ['avg', 'min', 'max', 'p(50)', 'p(90)', 'p(95)', 'p(99)'], maxRedirects: 0, tags: { experiment: 'EXP-DIS-01', run_id: __ENV.RUN_ID || 'manual' } };
 export function quote() {
   const started = Date.now(); const response = http.post(`${baseURL}/cotizaciones`, JSON.stringify({ product_id: 'producto-sintetico' }), { headers: { 'Content-Type':'application/json' }, timeout: `${config.timeout_seconds}s` });

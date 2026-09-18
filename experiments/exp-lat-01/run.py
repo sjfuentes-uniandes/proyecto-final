@@ -13,6 +13,46 @@ def command(args):
     return result.stdout
 def aws(*args): return json.loads(command(['aws', *args, '--output', 'json']))
 def save(path, value): path.write_text(json.dumps(value, indent=2) + '\n')
+CLUSTER='solventa-exp'; REGION='us-east-1'; API_ID='ox05ty0z5g'
+TARGET_GROUP_ARNS={
+    'cotizacion':'arn:aws:elasticloadbalancing:us-east-1:882567899411:targetgroup/solventa-exp-cotizacion/26497e586d321e91',
+    'consulta':'arn:aws:elasticloadbalancing:us-east-1:882567899411:targetgroup/solventa-exp-consulta/ee5f0800f64af5a6',
+}
+def discover_config():
+    """Construye config directamente desde AWS (sin Terraform local; ver exp-dis-01/HANDOFF.md)."""
+    os.environ.update(AWS_REGION=REGION,AWS_DEFAULT_REGION=REGION,AWS_PAGER='')
+    services=aws('ecs','describe-services','--cluster',CLUSTER,'--services',*SERVICES)['services']
+    by_name={s['serviceName']:s for s in services}
+    task_definitions={name:s['taskDefinition'] for name,s in by_name.items()}
+    image_digests={}
+    task_defs={}
+    for name,arn in task_definitions.items():
+        task_defs[name]=aws('ecs','describe-task-definition','--task-definition',arn)['taskDefinition']
+        image=task_defs[name]['containerDefinitions'][0]['image']
+        image_digests[name]=image.split('@',1)[1] if '@' in image else None
+    quotation_policies=aws('application-autoscaling','describe-scaling-policies','--service-namespace','ecs','--resource-id',f'service/{CLUSTER}/cotizacion')['ScalingPolicies']
+    backend_policies=[]
+    for name in ['catalogo','simulador','consulta']:
+        backend_policies+=aws('application-autoscaling','describe-scaling-policies','--service-namespace','ecs','--resource-id',f'service/{CLUSTER}/{name}')['ScalingPolicies']
+    simulador_env={e['name']:e['value'] for e in task_defs['simulador']['containerDefinitions'][0]['environment']}
+    cotizacion_env={e['name']:e['value'] for e in task_defs['cotizacion']['containerDefinitions'][0]['environment']}
+    log_groups={name:f'/ecs/{CLUSTER}/{name}' for name in SERVICES}
+    log_groups.update(service_connect=f'/ecs/{CLUSTER}/service-connect', ecs_events=f'/ecs/{CLUSTER}/events', api_gateway=f'/aws/apigateway/{CLUSTER}')
+    config={
+        'region':REGION,'cluster':CLUSTER,'api_id':API_ID,
+        'autoscaling':{'enabled':bool(quotation_policies)},
+        'backend_autoscaling':{'enabled':bool(backend_policies)},
+        'database_identifier':'solventa-exp',
+        'quotation_replicas':by_name['cotizacion']['desiredCount'],
+        'task_definitions':task_definitions,
+        'image_digests':image_digests,
+        'external_delay_ms':int(simulador_env.get('RESPONSE_DELAY_MS',-1)),
+        'external_retries':int(cotizacion_env.get('EXTERNAL_SOURCE_RETRIES',-1)),
+        'target_groups':{name:{'arn':arn} for name,arn in TARGET_GROUP_ARNS.items()},
+        'log_groups':log_groups,
+    }
+    entry_url='https://ox05ty0z5g.execute-api.us-east-1.amazonaws.com'
+    return config,entry_url
 def snapshot(config):
     result = {'services': {}, 'tasks': {}, 'target_health': {}, 'issues': [], 'collection_errors': []}
     def query(*args):
@@ -44,8 +84,7 @@ def main():
     parser.add_argument('--series', required=True); parser.add_argument('--repetition', required=True, choices=['1','2','3'])
     parser.add_argument('--dataset-state', required=True); args = parser.parse_args()
     if not args.series.replace('-', '').replace('_', '').isalnum(): parser.error('Serie inválida')
-    outputs = json.loads(command(['terraform', '-chdir=' + str(ROOT / 'infra/services'), 'output', '-json']))
-    config = outputs['experiment_configuration']['value']
+    config, entry_url = discover_config()
     if config['quotation_replicas'] != 1 or config['autoscaling']['enabled'] or config['backend_autoscaling']['enabled']:
         raise RuntimeError('Aplicar escenario LAT fijo: cotizacion=1 y autoscaling deshabilitado')
     if config['external_delay_ms'] != 50 or config['external_retries'] != 0:
@@ -66,9 +105,12 @@ def main():
     save(run/'metadata.json', metadata)
     before = snapshot(config); save(run/'before.json', before)
     if not before['healthy']: save(run/'execution.json', {'status':'precondition_failed'}); raise RuntimeError('Precondición fallida; revisar before.json')
-    env = dict(os.environ, BASE_URL=outputs['entry_url']['value'], RUN_ID=f'{args.series}-{args.repetition}', SUMMARY_PATH=str(run/'summary.json'))
+    env = dict(os.environ, BASE_URL=entry_url, RUN_ID=f'{args.series}-{args.repetition}', SUMMARY_PATH=str(run/'summary.json'))
     started = dt.datetime.now(dt.timezone.utc).isoformat()
-    with (run/'console.log').open('w') as log: outcome = subprocess.run(['k6','run','latency.js'], cwd=HERE, env=env, stdout=log, stderr=subprocess.STDOUT)
+    with (run/'console.log').open('w') as log:
+        outcome = subprocess.run(['k6', 'run', '-e', f'BASE_URL={env["BASE_URL"]}',
+                                  '-e', f'RUN_ID={env["RUN_ID"]}', '-e', f'SUMMARY_PATH={env["SUMMARY_PATH"]}',
+                                  'latency.js'], cwd=HERE, env=env, stdout=log, stderr=subprocess.STDOUT)
     ended = dt.datetime.now(dt.timezone.utc).isoformat(); save(run/'execution.json', {'start':started,'end':ended,'exit_code':outcome.returncode})
     save(run/'after.json', snapshot(config))
     if outcome.returncode not in (0, 99) or not (run/'summary.json').exists(): raise RuntimeError('k6 no produjo una medición válida')

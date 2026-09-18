@@ -17,7 +17,7 @@ def collect(run, config):
  for ns,metric,dims,stat in specs:
   try: point=aws('cloudwatch','get-metric-statistics','--namespace',ns,'--metric-name',metric,'--dimensions',*[f'Name={k},Value={v}' for k,v in dims.items()],'--start-time',execution['start'],'--end-time',execution['end'],'--period','60','--extended-statistics' if stat=='p95' else '--statistics',stat)
   except Exception as error: point={'Datapoints':[],'collection_error':str(error)}
- data.append({'namespace':ns,'metric':metric,'dimensions':dims,'statistic':stat,**point})
+  data.append({'namespace':ns,'metric':metric,'dimensions':dims,'statistic':stat,**point})
  (run/'cloudwatch.json').write_text(json.dumps(data,indent=2)+'\n')
  logs={}
  for name,group in config.get('log_groups',{}).items():

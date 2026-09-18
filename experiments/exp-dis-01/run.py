@@ -9,6 +9,47 @@ def command(args):
     return r.stdout
 def aws(*args): return json.loads(command(['aws',*args,'--output','json']))
 def save(path,data): path.write_text(json.dumps(data,indent=2)+'\n')
+CLUSTER='solventa-exp'; REGION='us-east-1'
+TARGET_GROUP_ARNS={
+    'cotizacion':'arn:aws:elasticloadbalancing:us-east-1:882567899411:targetgroup/solventa-exp-cotizacion/26497e586d321e91',
+    'consulta':'arn:aws:elasticloadbalancing:us-east-1:882567899411:targetgroup/solventa-exp-consulta/ee5f0800f64af5a6',
+}
+ALB_ARN='arn:aws:elasticloadbalancing:us-east-1:882567899411:loadbalancer/app/solventa-exp-entry/11236b51ca2cd7fa'
+def arn_suffix(arn): return arn.split(':',5)[-1]
+def discover_config():
+    """Construye config directamente desde AWS (sin Terraform local; ver HANDOFF.md)."""
+    os.environ.update(AWS_REGION=REGION,AWS_DEFAULT_REGION=REGION,AWS_PAGER='')
+    services=aws('ecs','describe-services','--cluster',CLUSTER,'--services',*SERVICES)['services']
+    by_name={s['serviceName']:s for s in services}
+    task_definitions={name:s['taskDefinition'] for name,s in by_name.items()}
+    quotation_target=aws('application-autoscaling','describe-scalable-targets','--service-namespace','ecs','--resource-ids',f'service/{CLUSTER}/cotizacion')['ScalableTargets']
+    quotation_policies=aws('application-autoscaling','describe-scaling-policies','--service-namespace','ecs','--resource-id',f'service/{CLUSTER}/cotizacion')['ScalingPolicies']
+    backend_policies=[]
+    for name in ['catalogo','simulador','consulta']:
+        backend_policies+=aws('application-autoscaling','describe-scaling-policies','--service-namespace','ecs','--resource-id',f'service/{CLUSTER}/{name}')['ScalingPolicies']
+    simulador_def=aws('ecs','describe-task-definition','--task-definition',task_definitions['simulador'])['taskDefinition']
+    cotizacion_def=aws('ecs','describe-task-definition','--task-definition',task_definitions['cotizacion'])['taskDefinition']
+    simulador_env={e['name']:e['value'] for e in simulador_def['containerDefinitions'][0]['environment']}
+    cotizacion_env={e['name']:e['value'] for e in cotizacion_def['containerDefinitions'][0]['environment']}
+    log_groups={name:f'/ecs/{CLUSTER}/{name}' for name in SERVICES}
+    log_groups.update(service_connect=f'/ecs/{CLUSTER}/service-connect', ecs_events=f'/ecs/{CLUSTER}/events')
+    config={
+        'region':REGION,'cluster':CLUSTER,
+        'autoscaling':{'enabled':bool(quotation_policies),
+                       'min_replicas':quotation_target[0]['MinCapacity'] if quotation_target else None,
+                       'max_replicas':quotation_target[0]['MaxCapacity'] if quotation_target else None},
+        'backend_autoscaling':{'enabled':bool(backend_policies)},
+        'database_identifier':'solventa-exp',
+        'quotation_replicas':by_name['cotizacion']['desiredCount'],
+        'task_definitions':task_definitions,
+        'external_delay_ms':int(simulador_env.get('RESPONSE_DELAY_MS',-1)),
+        'external_retries':int(cotizacion_env.get('EXTERNAL_SOURCE_RETRIES',-1)),
+        'target_groups':{name:{'arn':arn,'arn_suffix':arn_suffix(arn)} for name,arn in TARGET_GROUP_ARNS.items()},
+        'alb':{'arn_suffix':arn_suffix(ALB_ARN)},
+        'log_groups':log_groups,
+    }
+    entry_url='https://ox05ty0z5g.execute-api.us-east-1.amazonaws.com'
+    return config,entry_url
 def observe(config):
     result={'timestamp':dt.datetime.now(dt.timezone.utc).isoformat(),'services':{},'target_health':{},'errors':[]}
     try:
@@ -31,7 +72,7 @@ def initial_check(config):
     return point,issues
 def main():
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('--series',required=True); p.add_argument('--repetition',required=True,choices=['1','2','3']); p.add_argument('--dataset-state',required=True); p.add_argument('--fault-task-arn',required=True); args=p.parse_args()
-    outputs=json.loads(command(['terraform','-chdir='+str(ROOT/'infra/services'),'output','-json'])); config=outputs['experiment_configuration']['value']
+    config,entry_url=discover_config()
     if config['quotation_replicas']!=2 or config['autoscaling']['enabled'] or config['backend_autoscaling']['enabled']: raise RuntimeError('Aplicar escenario DIS fijo: cotizacion=2 y autoscaling deshabilitado')
     if config['external_delay_ms'] != 50 or config['external_retries'] != 0: raise RuntimeError('El simulador debe permanecer en 50 ms y sin reintentos')
     os.environ.update(AWS_REGION=config['region'],AWS_DEFAULT_REGION=config['region'],AWS_PAGER='')
@@ -52,9 +93,12 @@ def main():
     timeline=[]; stop=threading.Event()
     def monitor():
         while not stop.is_set(): timeline.append(observe(config)); stop.wait(metadata['config']['poll_seconds'])
-    worker=threading.Thread(target=monitor,daemon=True);worker.start(); env=dict(os.environ,BASE_URL=outputs['entry_url']['value'],RUN_ID=f'{args.series}-{args.repetition}',SUMMARY_PATH=str(run/'summary.json'))
+    worker=threading.Thread(target=monitor,daemon=True);worker.start(); env=dict(os.environ,BASE_URL=entry_url,RUN_ID=f'{args.series}-{args.repetition}',SUMMARY_PATH=str(run/'summary.json'))
     started=dt.datetime.now(dt.timezone.utc).isoformat()
-    with (run/'console.log').open('w') as log: k6=subprocess.Popen(['k6','run','availability.js'],cwd=HERE,env=env,stdout=log,stderr=subprocess.STDOUT)
+    with (run/'console.log').open('w') as log:
+        k6=subprocess.Popen(['k6','run','-e',f'BASE_URL={env["BASE_URL"]}',
+                             '-e',f'RUN_ID={env["RUN_ID"]}', '-e',f'SUMMARY_PATH={env["SUMMARY_PATH"]}',
+                             'availability.js'],cwd=HERE,env=env,stdout=log,stderr=subprocess.STDOUT)
     time.sleep(metadata['config']['baseline_seconds']); t0=dt.datetime.now(dt.timezone.utc).isoformat(); stop_result=aws('ecs','stop-task','--cluster',config['cluster'],'--task',args.fault_task_arn,'--reason','EXP-DIS-01: prueba controlada de disponibilidad')
     k6.wait(); ended=dt.datetime.now(dt.timezone.utc).isoformat(); timeline.append(observe(config)); stop.set();worker.join(timeout=10)
     t1=next((x['timestamp'] for x in timeline if x['timestamp']>=t0 and healthy_two(x,config)),None); save(run/'timeline.json',timeline); save(run/'stop-task.json',stop_result); save(run/'execution.json',{'start':started,'t0':t0,'t1':t1,'end':ended,'rto_seconds':(dt.datetime.fromisoformat(t1)-dt.datetime.fromisoformat(t0)).total_seconds() if t1 else None,'exit_code':k6.returncode}); save(run/'after.json',observe(config))
