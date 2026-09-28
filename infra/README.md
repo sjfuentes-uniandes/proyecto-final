@@ -1,6 +1,6 @@
 # Terraform: base y servicios independientes
 
-> **Plataforma de las historias de usuario:** `infra/platform/` e `infra/apps/` contienen la infraestructura objetivo (API Gateway + WAF, NLB privado, ECS en dos zonas, RDS con base por servicio, SNS/SQS, Cognito, S3 con Object Lock, ADOT/X-Ray y alertas) para las historias en *Ready*. Ver [PLATAFORMA.md](PLATAFORMA.md). Este documento describe solo el ambiente del experimento (`base/` y `services/`), que sigue funcionando sin cambios.
+> **Plataforma de las historias de usuario:** `infra/platform/` e `infra/apps/` contienen la infraestructura objetivo (API Gateway REST + WAF opcional, ALB interno con VPC Link v2, ECS en dos zonas, RDS con base por servicio, SNS/SQS, Cognito, S3 con Object Lock, ADOT/X-Ray y alertas) para las historias en *Ready*. Ver [PLATAFORMA.md](PLATAFORMA.md). Este documento describe solo el ambiente del experimento (`base/` y `services/`), que sigue funcionando sin cambios.
 
 La guía completa de despliegue está en el [README principal](../README.md#levantar-el-ambiente-en-aws). La infraestructura está dividida en dos raíces Terraform; no ejecutar `plan` ni `apply` desde esta carpeta directamente.
 

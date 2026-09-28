@@ -1,7 +1,15 @@
-# Una clave administrada por el cliente para secretos, RDS, mensajería, logs y
-# auditoría. Los roles de tarea reciben kms:Decrypt/GenerateDataKey por IAM; la
-# política de clave solo autoriza a los servicios de AWS que cifran en su nombre.
+# Opcional (use_customer_managed_key): una clave administrada por el cliente para
+# secretos, RDS, mensajería, logs y auditoría. Sin ella, cada servicio cifra con
+# su clave administrada por AWS (aws/rds, aws/secretsmanager, aws/sns, SSE-SQS,
+# SSE-S3), sin costo. Con clave propia, los roles de tarea reciben
+# kms:Decrypt/GenerateDataKey por IAM y la política de clave solo autoriza a los
+# servicios de AWS que cifran en su nombre.
+locals {
+  kms_key_arn = var.use_customer_managed_key ? aws_kms_key.platform[0].arn : null
+}
+
 resource "aws_kms_key" "platform" {
+  count                   = var.use_customer_managed_key ? 1 : 0
   description             = "${local.prefix}: secretos, datos, mensajería y logs"
   enable_key_rotation     = true
   deletion_window_in_days = 7
@@ -39,8 +47,9 @@ resource "aws_kms_key" "platform" {
 }
 
 resource "aws_kms_alias" "platform" {
+  count         = var.use_customer_managed_key ? 1 : 0
   name          = "alias/${local.prefix}"
-  target_key_id = aws_kms_key.platform.key_id
+  target_key_id = aws_kms_key.platform[0].key_id
 }
 
 # Credenciales de aliados. Terraform crea un marcador; el valor real se carga
@@ -49,7 +58,7 @@ resource "aws_secretsmanager_secret" "ally" {
   for_each                = local.allies
   name                    = "${local.prefix}/aliados/${each.key}"
   description             = each.value.description
-  kms_key_id              = aws_kms_key.platform.arn
+  kms_key_id              = local.kms_key_arn
   recovery_window_in_days = 0
 }
 

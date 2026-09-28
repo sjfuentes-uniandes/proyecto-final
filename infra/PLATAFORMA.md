@@ -4,19 +4,19 @@ Infraestructura para ejecutar en AWS las 13 historias de la columna **Ready** de
 
 | Raíz | Qué crea | Depende de |
 | --- | --- | --- |
-| `infra/platform/` | Red en 2 zonas, NAT, KMS, ECR, RDS PostgreSQL con base y usuario por servicio, clúster ECS y Service Connect, SNS/SQS/DLQ, S3 de auditoría con Object Lock, Cognito, NLB privado + VPC Link + API Gateway REST + WAF, CloudFront para el portal y tópico de alertas | Nada |
+| `infra/platform/` | Red en 2 zonas, NAT instance (o NAT Gateway), KMS opcional, ECR, RDS PostgreSQL con base y usuario por servicio, clúster ECS y Service Connect, SNS/SQS/DLQ, S3 de auditoría con Object Lock, Cognito, ALB interno + VPC Link v2 + API Gateway REST + WAF opcional, CloudFront para el portal y tópico de alertas | Nada |
 | `infra/apps/` | Por cada servicio con imagen publicada: roles IAM, grupos de seguridad, tareas Fargate con colector ADOT, servicios ECS en capas, autoescalado, alarmas y tablero | Estado de `platform` e imágenes en ECR |
 
-El catálogo de servicios vive en un solo lugar: `infra/platform/catalog.tf`. Allí se declaran nivel, puerto del NLB, base de datos, dependencias síncronas, eventos, colas y aliados. `apps` lo recibe por el output `platform`.
+El catálogo de servicios vive en un solo lugar: `infra/platform/catalog.tf`. Allí se declaran nivel, puerto del listener del ALB, base de datos, dependencias síncronas, eventos, colas y aliados. `apps` lo recibe por el output `platform`.
 
 ## Arquitectura desplegada
 
 ```
 Portal web ─► CloudFront + S3 (SPA)
-Portal web / App móvil ─HTTPS─► WAF ─► API Gateway "canales" ─┐  (JWT Cognito clientes/back-office)
-Socio ──HTTPS (+mTLS opc.)──► WAF ─► API Gateway "socios" ────┤  (JWT client_credentials + API key + plan de uso)
+Portal web / App móvil ─HTTPS─► [WAF] ─► API Gateway "canales" ─┐  (JWT Cognito clientes/back-office)
+Socio ──HTTPS (+mTLS opc.)──► [WAF] ─► API Gateway "socios" ────┤  (JWT client_credentials + API key + plan de uso)
                                                               ▼
-                                               VPC Link ─► NLB privado (8081/8082/8083)
+                                          VPC Link v2 ─► ALB interno (8081/8082/8083)
                                                               ▼
  ┌──────────────────────── ECS Fargate · subredes privadas zonas A y B ────────────────────────┐
  │ bff-web   bff-movil   api-socios          ◄─ capa de acceso                                  │
@@ -50,17 +50,40 @@ Socio ──HTTPS (+mTLS opc.)──► WAF ─► API Gateway "socios" ──�
 
 Transversal (ARQ-001/002/003): tareas repartidas en dos zonas con rebalanceo, circuito de despliegue con rollback, Service Connect, autoescalado (APIs por CPU y workers por profundidad de cola), RDS Multi-AZ con `high_availability = true`, cifrado con KMS y secretos fuera de las imágenes.
 
-## Decisiones y costos (perfil por defecto: mínimo costo)
+## Decisiones y costos (perfil por defecto: capa gratuita)
 
-- **Un solo NAT Gateway** (unos 33 USD/mes más el tráfico). Es más barato que los endpoints de interfaz (unos 7 USD/mes por servicio y zona). Además, los adaptadores (aliados reales) y `api-socios` (plano de control de Cognito y API Gateway) necesitan salida a Internet. El endpoint *gateway* de S3 es gratuito y siempre se crea. `interface_endpoints` permite agregar endpoints si se requiere tráfico privado.
-- **RDS `db.t4g.micro` Single-AZ** con una base y un usuario por servicio en la misma instancia. `high_availability = true` activa Multi-AZ (standby síncrono) y un NAT por zona.
-- **1 réplica por servicio**, con base en FARGATE y excedente en FARGATE_SPOT. `min_replicas = 2` deja una réplica activa en cada zona (redundancia activa, HU-W29).
-- **API Gateway REST en lugar de HTTP API**: los planes de uso, las API keys y WAF solo existen en REST. REST exige **NLB** para el VPC Link, como indica la tabla de nodos de la Entrega 8.
+Ninguna configuración con ECS Fargate es 100 % gratuita, porque **Fargate no tiene capa gratuita**. El perfil por defecto usa todo lo que sí la tiene y apaga lo que no es indispensable:
+
+| Componente | Perfil por defecto | Capa gratuita (cuentas anteriores a jul-2025, 12 meses) | Sin capa gratuita |
+| --- | --- | --- | --- |
+| Entrada privada | **ALB interno** + VPC Link v2 | 750 h/mes: 0 USD | ~18 USD/mes |
+| Salida a Internet | **NAT instance `t3.micro`** (`egress_mode = "nat_instance"`) | 750 h de EC2 y de IPv4 pública: 0 USD | ~11 USD/mes |
+| Base de datos | RDS `db.t4g.micro` Single-AZ, 20 GB, sin autoescalado de almacenamiento | 750 h + 20 GB: 0 USD | ~14 USD/mes |
+| Tareas | 0,25 vCPU / 1 GB, **todas en FARGATE_SPOT** | Sin capa gratuita | ~3,2 USD/mes por tarea (~10,6 en FARGATE) |
+| Cifrado | Claves administradas por AWS (`use_customer_managed_key = false`) | 0 USD | 0 USD (1 USD/mes con clave propia) |
+| WAF | Desactivado (`enable_waf = false`) | Sin capa gratuita | ~9 USD/mes si se activa |
+| Secrets Manager | 8 secretos (bases, aliados y maestro de RDS) | 30 días de prueba | ~3,2 USD/mes |
+| Alarmas CloudWatch | ~34 con los 10 servicios | 10 gratis | ~2,4 USD/mes |
+| API Gateway, Cognito (usuarios), CloudFront, S3, SNS, SQS, ECR, X-Ray | Volumen de pruebas | Dentro de la capa gratuita | Centavos |
+
+Estimado con los 10 servicios encendidos 24/7:
+- **Con capa gratuita: ≈ 38 USD/mes**, casi todo Fargate Spot.
+- **Pausado (`paused = true` en apps): ≈ 6 USD/mes.** Pausar lleva todas las tareas a 0 sin destruir nada; también se puede detener RDS hasta 7 días (`aws rds stop-db-instance`).
+- **Sin capa gratuita: ≈ 81 USD/mes encendido y ≈ 50 USD/mes pausado.**
+
+En las cuentas creadas después del 15-jul-2025 (plan gratuito con créditos), estos costos se descuentan de los créditos del plan (hasta 200 USD durante 6 meses). Los clientes OAuth de socios (`client_credentials`) tienen un cobro propio en Cognito: revisar su precio antes de crear muchos socios.
+
+**Qué se pierde con el perfil barato y cómo recuperarlo:**
+- **NAT instance:** una sola instancia en la zona A. Si falla, EC2 la recupera, pero mientras tanto se corta la salida a Internet (aliados, Cognito y API Gateway desde `api-socios`). El ALB, RDS y Service Connect siguen funcionando. `egress_mode = "nat_gateway"` usa el servicio administrado (~33 USD/mes; uno por zona con `high_availability = true`).
+- **FARGATE_SPOT:** AWS puede interrumpir una tarea con 2 minutos de aviso y ECS la reemplaza. `use_fargate_spot = false` para producción.
+- **Sin WAF:** el borde conserva la autenticación con Cognito, las API keys, las cuotas y el throttling de API Gateway. `enable_waf = true` agrega las reglas administradas y el límite por IP.
+- **Una réplica y RDS Single-AZ:** `min_replicas = 2` deja una réplica activa por zona (HU-W29) y `high_availability = true` activa RDS Multi-AZ.
+
+**Otras decisiones:**
+- **API Gateway REST en lugar de HTTP API:** los planes de uso, las API keys y WAF solo existen en REST. REST se integra en privado con el **ALB** mediante un **VPC Link v2** (`integration_target`). El ALB tiene un listener por servicio de acceso (8081 `bff-web`, 8082 `bff-movil`, 8083 `api-socios`) y solo acepta tráfico del grupo de seguridad del VPC Link.
 - **Dos APIs** (`canales` y `socios`): el mTLS aplica a todo un dominio. Separarlos permite exigir certificado solo a los socios y desactivar el endpoint `execute-api` del API de socios cuando existe dominio propio.
-- **WAF** activo por defecto (unos 5 USD/mes + 1 USD por regla). **Container Insights** desactivado (`container_insights`).
+- **Endpoints de interfaz:** opcionales (`interface_endpoints`, ~7 USD/mes cada uno por zona). El endpoint *gateway* de S3 es gratuito y siempre se crea, así que las capas de ECR y la auditoría no pasan por la NAT.
 - **Caché de catálogo (ElastiCache)**, **proyección CQRS**, **Saga** y **evidencias de siniestros** no se crean porque ninguna historia en Ready los usa. El catálogo permite agregarlos después.
-
-Costo orientativo del ambiente vacío (us-east-1): NAT ~33, WAF ~9, RDS micro ~13, NLB ~17, KMS ~1 y CloudFront/Cognito/SNS/SQS casi 0 en volumen de pruebas, **≈ 75 USD/mes** antes de las tareas. Cada tarea de 0,25 vCPU / 1 GB cuesta ≈ 9 USD/mes en FARGATE (menos en SPOT). Para ahorrar, **destruir el ambiente cuando no se use**.
 
 ## Despliegue
 

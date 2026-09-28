@@ -13,19 +13,25 @@ resource "aws_vpc_security_group_egress_rule" "service" {
   ip_protocol       = "-1"
 }
 
-# El NLB no tiene grupo de seguridad: con destinos IP, el origen es la IP
-# privada del NLB dentro de las subredes privadas.
-resource "aws_vpc_security_group_ingress_rule" "nlb" {
-  for_each = {
-    for pair in setproduct([for name, service in local.deployed : name if service.nlb_port != null], range(length(local.p.private_subnet_cidrs))) :
-    "${pair[0]}-${pair[1]}" => { service = pair[0], cidr = local.p.private_subnet_cidrs[pair[1]] }
-  }
-  security_group_id = aws_security_group.service[each.value.service].id
-  cidr_ipv4         = each.value.cidr
-  ip_protocol       = "tcp"
-  from_port         = 8080
-  to_port           = 8080
-  description       = "NLB privado y health checks"
+# ALB interno -> servicios de acceso (tráfico y health checks).
+resource "aws_vpc_security_group_ingress_rule" "alb" {
+  for_each                     = { for name, service in local.deployed : name => service if service.listener_port != null }
+  security_group_id            = aws_security_group.service[each.key].id
+  referenced_security_group_id = local.p.alb.security_group_id
+  ip_protocol                  = "tcp"
+  from_port                    = 8080
+  to_port                      = 8080
+  description                  = "ALB interno"
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb" {
+  for_each                     = { for name, service in local.deployed : name => service if service.listener_port != null }
+  security_group_id            = local.p.alb.security_group_id
+  referenced_security_group_id = aws_security_group.service[each.key].id
+  ip_protocol                  = "tcp"
+  from_port                    = 8080
+  to_port                      = 8080
+  description                  = each.key
 }
 
 # REST interno por Service Connect: solo los enlaces declarados en el catálogo.

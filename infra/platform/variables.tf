@@ -32,7 +32,29 @@ variable "vpc_cidr" {
 }
 
 variable "high_availability" {
-  description = "true: RDS Multi-AZ, un NAT por zona y endpoints en ambas zonas. false: perfil de mínimo costo."
+  description = "true: RDS Multi-AZ, un NAT Gateway por zona y endpoints en ambas zonas. false: perfil de mínimo costo."
+  type        = bool
+  default     = false
+}
+
+variable "egress_mode" {
+  description = "Salida a Internet de las subredes privadas. nat_instance: una EC2 pequeña (capa gratuita). nat_gateway: servicio administrado (~33 USD/mes por zona)."
+  type        = string
+  default     = "nat_instance"
+  validation {
+    condition     = contains(["nat_instance", "nat_gateway"], var.egress_mode)
+    error_message = "Use nat_instance o nat_gateway."
+  }
+}
+
+variable "nat_instance_type" {
+  description = "t3.micro es elegible para la capa gratuita de EC2."
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "use_customer_managed_key" {
+  description = "true: clave KMS propia (~1 USD/mes) para secretos, datos, mensajería y logs. false: claves administradas por AWS sin costo."
   type        = bool
   default     = false
 }
@@ -166,8 +188,9 @@ variable "custom_domain" {
 }
 
 variable "enable_waf" {
-  type    = bool
-  default = true
+  description = "AWS WAF no tiene capa gratuita (~5 USD/mes + 1 USD por regla). Activarlo en ambientes expuestos."
+  type        = bool
+  default     = false
 }
 
 variable "waf_rate_limit" {

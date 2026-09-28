@@ -30,7 +30,7 @@ resource "aws_service_discovery_http_namespace" "main" {
 resource "aws_cloudwatch_log_group" "db_bootstrap" {
   name              = "/ecs/${local.prefix}/db-bootstrap"
   retention_in_days = var.log_retention_days
-  kms_key_id        = aws_kms_key.platform.arn
+  kms_key_id        = local.kms_key_arn
 }
 
 locals {
@@ -69,23 +69,22 @@ resource "aws_iam_role_policy" "db_bootstrap" {
   role = aws_iam_role.db_bootstrap.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
-        Resource = "${aws_cloudwatch_log_group.db_bootstrap.arn}:*"
+        Resource = ["${aws_cloudwatch_log_group.db_bootstrap.arn}:*"]
       },
       {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
         Resource = concat([aws_db_instance.main.master_user_secret[0].secret_arn], [for secret in aws_secretsmanager_secret.service_db : secret.arn])
       },
-      {
+      ], var.use_customer_managed_key ? [{
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
-        Resource = aws_kms_key.platform.arn
-      }
-    ]
+        Resource = [local.kms_key_arn]
+    }] : [])
   })
 }
 

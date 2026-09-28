@@ -49,6 +49,8 @@ resource "aws_iam_role_policy" "execution" {
             [for ally in each.value.allies : local.p.allies[ally].secret_arn]
           )
         },
+      ] : [],
+      (each.value.database || length(each.value.allies) > 0) && local.p.kms_key_arn != null ? [
         { Effect = "Allow", Action = ["kms:Decrypt"], Resource = [local.p.kms_key_arn] },
       ] : []
     )
@@ -119,7 +121,7 @@ locals {
         },
       ] : [],
       # Clave de la plataforma para mensajería y auditoría cifradas.
-      service.publishes || length(service.consumes) > 0 || contains(local.audit_writers, name) ? [
+      local.p.kms_key_arn != null && (service.publishes || length(service.consumes) > 0 || contains(local.audit_writers, name)) ? [
         { Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = [local.p.kms_key_arn] },
       ] : [],
     )

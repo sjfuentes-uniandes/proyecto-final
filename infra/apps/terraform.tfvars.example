@@ -6,8 +6,13 @@ task_memory  = 1024
 min_replicas = 1 # 2 = una réplica activa por zona (redundancia activa)
 max_replicas = 3
 
+# Todas las tareas en FARGATE_SPOT (~70 % más barato). false para producción.
 use_fargate_spot = true
-cpu_target       = 60
+
+# true = 0 tareas en todos los servicios (sin costo de Fargate) cuando no se use el ambiente.
+paused = false
+
+cpu_target = 60
 
 # service_overrides = {
 #   cotizacion = { cpu = 512, memory = 1024, max = 5 }

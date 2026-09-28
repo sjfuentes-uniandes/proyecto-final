@@ -63,8 +63,8 @@ locals {
       {
         type = "metric", x = 0, y = 20, width = 8, height = 6
         properties = {
-          title   = "Destinos saludables (NLB)", region = local.p.region, period = 60, stat = "Minimum"
-          metrics = [for name, group in local.p.target_groups : ["AWS/NetworkELB", "HealthyHostCount", "LoadBalancer", local.p.nlb_arn_suffix, "TargetGroup", group.arn_suffix]]
+          title   = "Destinos saludables (ALB)", region = local.p.region, period = 60, stat = "Minimum"
+          metrics = [for name, group in local.p.target_groups : ["AWS/ApplicationELB", "HealthyHostCount", "LoadBalancer", local.p.alb.arn_suffix, "TargetGroup", group.arn_suffix]]
         }
       },
       {

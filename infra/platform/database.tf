@@ -23,18 +23,18 @@ resource "aws_db_parameter_group" "main" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier                      = local.prefix
-  engine                          = "postgres"
-  engine_version                  = var.postgres_version
-  instance_class                  = var.db_instance_class
+  identifier     = local.prefix
+  engine         = "postgres"
+  engine_version = var.postgres_version
+  instance_class = var.db_instance_class
+  # 20 GB y sin autoescalado de almacenamiento: dentro de la capa gratuita de RDS.
   allocated_storage               = var.db_allocated_storage
-  max_allocated_storage           = var.db_allocated_storage * 5
   storage_type                    = "gp3"
   storage_encrypted               = true
-  kms_key_id                      = aws_kms_key.platform.arn
+  kms_key_id                      = local.kms_key_arn
   username                        = "solventa_admin"
   manage_master_user_password     = true
-  master_user_secret_kms_key_id   = aws_kms_key.platform.arn
+  master_user_secret_kms_key_id   = local.kms_key_arn
   db_subnet_group_name            = aws_db_subnet_group.main.name
   parameter_group_name            = aws_db_parameter_group.main.name
   vpc_security_group_ids          = [aws_security_group.database.id]
@@ -64,7 +64,7 @@ resource "aws_secretsmanager_secret" "service_db" {
   for_each                = local.database_services
   name                    = "${local.prefix}/db/${each.key}"
   description             = "Credenciales de ${each.key} para su base privada"
-  kms_key_id              = aws_kms_key.platform.arn
+  kms_key_id              = local.kms_key_arn
   recovery_window_in_days = 0
 }
 

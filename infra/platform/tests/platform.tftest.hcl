@@ -9,6 +9,9 @@ mock_provider "aws" {
   mock_data "aws_partition" {
     defaults = { partition = "aws" }
   }
+  mock_data "aws_ssm_parameter" {
+    defaults = { value = "ami-0123456789abcdef0" }
+  }
   mock_resource "aws_db_instance" {
     defaults = {
       address            = "solventa-int.abc.us-east-1.rds.amazonaws.com"
@@ -41,7 +44,8 @@ mock_provider "aws" {
     defaults = { arn = "arn:aws:iam::123456789012:role/r" }
   }
   mock_resource "aws_lb" {
-    defaults = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/net/a/1", dns_name = "access.elb.amazonaws.com" }
+    override_during = plan
+    defaults        = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/net/a/1", dns_name = "access.elb.amazonaws.com" }
   }
   mock_resource "aws_api_gateway_stage" {
     defaults = { arn = "arn:aws:apigateway:us-east-1::/restapis/a/stages/v1" }
@@ -57,8 +61,24 @@ run "minimo_costo" {
   command = plan
 
   assert {
-    condition     = aws_db_instance.main.multi_az == false && length(aws_nat_gateway.main) == 1
-    error_message = "El perfil por defecto debe ser Single-AZ con un NAT."
+    condition     = aws_db_instance.main.multi_az == false && length(aws_nat_gateway.main) == 0 && length(aws_instance.nat) == 1
+    error_message = "El perfil por defecto debe ser Single-AZ con NAT instance y sin NAT Gateway."
+  }
+  assert {
+    condition     = aws_instance.nat[0].instance_type == "t3.micro" && aws_instance.nat[0].source_dest_check == false
+    error_message = "La NAT instance debe ser elegible para la capa gratuita y reenviar tráfico."
+  }
+  assert {
+    condition     = length(aws_kms_key.platform) == 0 && aws_sqs_queue.main["auditoria"].sqs_managed_sse_enabled && aws_sns_topic.business_events.kms_master_key_id == "alias/aws/sns"
+    error_message = "Sin clave propia se usan claves administradas por AWS."
+  }
+  assert {
+    condition     = aws_lb.access.load_balancer_type == "application" && aws_lb.access.internal
+    error_message = "La entrada privada debe ser un ALB interno."
+  }
+  assert {
+    condition     = aws_api_gateway_integration.proxy["web"].connection_type == "VPC_LINK" && aws_api_gateway_integration.proxy["web"].uri == "http://access.elb.amazonaws.com:8081/{proxy}"
+    error_message = "API Gateway debe integrarse con el ALB por VPC Link v2."
   }
   assert {
     condition     = length(aws_ecr_repository.service) == length(local.catalog)
@@ -66,7 +86,7 @@ run "minimo_costo" {
   }
   assert {
     condition     = toset(keys(aws_lb_listener.access)) == toset(["bff-web", "bff-movil", "api-socios"])
-    error_message = "Solo los servicios de acceso se publican en el NLB."
+    error_message = "Solo los servicios de acceso se publican en el ALB."
   }
   assert {
     condition     = toset(keys(aws_secretsmanager_secret.service_db)) == toset(["api-socios", "clientes", "catalogo", "cotizacion"])
@@ -89,8 +109,8 @@ run "minimo_costo" {
     error_message = "El exceso de cuota debe responder 429."
   }
   assert {
-    condition     = length(aws_wafv2_web_acl_association.api) == 2
-    error_message = "WAF debe proteger ambos APIs."
+    condition     = length(aws_wafv2_web_acl_association.api) == 0
+    error_message = "WAF queda desactivado en el perfil de mínimo costo."
   }
   assert {
     condition     = contains(local.discoverable, "simulador-aliados") && !contains(local.discoverable, "bff-web")
@@ -102,7 +122,10 @@ run "alta_disponibilidad_con_socios_y_mtls" {
   command = plan
 
   variables {
-    high_availability = true
+    high_availability        = true
+    egress_mode              = "nat_gateway"
+    use_customer_managed_key = true
+    enable_waf               = true
     partners = {
       socio-a = { tier = "basico", scopes = ["cotizaciones.escribir"] }
       socio-b = { tier = "estandar", scopes = ["cotizaciones.leer"], enabled = false }
@@ -116,8 +139,12 @@ run "alta_disponibilidad_con_socios_y_mtls" {
   }
 
   assert {
-    condition     = aws_db_instance.main.multi_az && length(aws_nat_gateway.main) == 2
-    error_message = "Alta disponibilidad: RDS Multi-AZ y un NAT por zona."
+    condition     = aws_db_instance.main.multi_az && length(aws_nat_gateway.main) == 2 && length(aws_instance.nat) == 0
+    error_message = "Alta disponibilidad: RDS Multi-AZ y un NAT Gateway por zona."
+  }
+  assert {
+    condition     = length(aws_kms_key.platform) == 1 && length(aws_wafv2_web_acl_association.api) == 2
+    error_message = "Perfil completo: clave KMS propia y WAF en ambos APIs."
   }
   assert {
     condition     = length(aws_cognito_user_pool_client.partner) == 1 && length(aws_api_gateway_api_key.partner) == 2

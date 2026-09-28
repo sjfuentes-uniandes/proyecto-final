@@ -1,17 +1,52 @@
-# Entrada segura: WAF -> API Gateway (REST) -> VPC Link -> NLB privado -> BFF/API
-# en ECS. Dos APIs separados:
+# Entrada segura: WAF -> API Gateway (REST) -> VPC Link v2 -> ALB interno ->
+# BFF/API en ECS. Dos APIs separados:
 #   canales -> /web/* (bff-web) y /movil/* (bff-movil), tokens de clientes/back-office
 #   socios  -> /*     (api-socios), token client_credentials + API key con plan de
 #              uso por socio (cuota independiente, HU-W02) y mTLS opcional.
 # Se usa REST y no HTTP API porque solo REST ofrece planes de uso, API keys y WAF.
+# REST llega al ALB privado con un VPC Link v2 y el ARN del ALB como destino.
 
-# --- NLB privado y destinos ----------------------------------------------------
+# --- ALB interno y destinos ----------------------------------------------------
+# El ALB entra en la capa gratuita de Elastic Load Balancing (750 h/mes).
+resource "aws_security_group" "vpc_link" {
+  name        = "${local.prefix}-vpc-link"
+  description = "Interfaces del VPC Link de API Gateway hacia el ALB"
+  vpc_id      = aws_vpc.main.id
+}
+
+resource "aws_security_group" "alb" {
+  name        = "${local.prefix}-alb"
+  description = "ALB interno: solo recibe trafico del VPC Link"
+  vpc_id      = aws_vpc.main.id
+}
+
+resource "aws_vpc_security_group_egress_rule" "vpc_link" {
+  for_each                     = local.access_services
+  security_group_id            = aws_security_group.vpc_link.id
+  referenced_security_group_id = aws_security_group.alb.id
+  ip_protocol                  = "tcp"
+  from_port                    = each.value.listener_port
+  to_port                      = each.value.listener_port
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb" {
+  for_each                     = local.access_services
+  security_group_id            = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.vpc_link.id
+  ip_protocol                  = "tcp"
+  from_port                    = each.value.listener_port
+  to_port                      = each.value.listener_port
+  description                  = each.key
+}
+
 resource "aws_lb" "access" {
-  name                             = "${local.prefix}-access"
-  load_balancer_type               = "network"
-  internal                         = true
-  subnets                          = aws_subnet.private[*].id
-  enable_cross_zone_load_balancing = true
+  name                       = "${local.prefix}-access"
+  load_balancer_type         = "application"
+  internal                   = true
+  subnets                    = aws_subnet.private[*].id
+  security_groups            = [aws_security_group.alb.id]
+  drop_invalid_header_fields = true
+  idle_timeout               = 30
 }
 
 # Destinos IP registrados por los servicios ECS de apps (retiro de no saludables).
@@ -19,12 +54,11 @@ resource "aws_lb_target_group" "access" {
   for_each             = local.access_services
   name                 = "${local.prefix}-${each.key}"
   port                 = 8080
-  protocol             = "TCP"
+  protocol             = "HTTP"
   target_type          = "ip"
   vpc_id               = aws_vpc.main.id
   deregistration_delay = 15
   health_check {
-    protocol            = "HTTP"
     path                = "/health"
     matcher             = "200"
     interval            = 10
@@ -34,20 +68,23 @@ resource "aws_lb_target_group" "access" {
   }
 }
 
+# Un listener por servicio de acceso: API Gateway ya separó la ruta y reenvía
+# solo {proxy}, por lo que el ALB no necesita reglas de ruta.
 resource "aws_lb_listener" "access" {
   for_each          = local.access_services
   load_balancer_arn = aws_lb.access.arn
-  port              = each.value.nlb_port
-  protocol          = "TCP"
+  port              = each.value.listener_port
+  protocol          = "HTTP"
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.access[each.key].arn
   }
 }
 
-resource "aws_api_gateway_vpc_link" "access" {
-  name        = "${local.prefix}-access"
-  target_arns = [aws_lb.access.arn]
+resource "aws_apigatewayv2_vpc_link" "access" {
+  name               = "${local.prefix}-access"
+  subnet_ids         = aws_subnet.private[*].id
+  security_group_ids = [aws_security_group.vpc_link.id]
 }
 
 # --- Registro de API Gateway en CloudWatch (configuración de la cuenta/región) ---
@@ -169,8 +206,9 @@ resource "aws_api_gateway_integration" "proxy" {
   type                    = "HTTP_PROXY"
   integration_http_method = "ANY"
   connection_type         = "VPC_LINK"
-  connection_id           = aws_api_gateway_vpc_link.access.id
-  uri                     = "http://${aws_lb.access.dns_name}:${local.catalog[each.value.service].nlb_port}/{proxy}"
+  connection_id           = aws_apigatewayv2_vpc_link.access.id
+  integration_target      = aws_lb.access.arn
+  uri                     = "http://${aws_lb.access.dns_name}:${local.catalog[each.value.service].listener_port}/{proxy}"
   timeout_milliseconds    = 29000
   request_parameters = merge(
     {
@@ -201,8 +239,9 @@ resource "aws_api_gateway_integration" "preflight" {
   type                    = "HTTP_PROXY"
   integration_http_method = "OPTIONS"
   connection_type         = "VPC_LINK"
-  connection_id           = aws_api_gateway_vpc_link.access.id
-  uri                     = "http://${aws_lb.access.dns_name}:${local.catalog[each.value.service].nlb_port}/{proxy}"
+  connection_id           = aws_apigatewayv2_vpc_link.access.id
+  integration_target      = aws_lb.access.arn
+  uri                     = "http://${aws_lb.access.dns_name}:${local.catalog[each.value.service].listener_port}/{proxy}"
   timeout_milliseconds    = 5000
   request_parameters = {
     "integration.request.path.proxy" = "method.request.path.proxy"
@@ -269,7 +308,7 @@ resource "aws_cloudwatch_log_group" "api" {
   for_each          = local.apis
   name              = "/aws/apigateway/${local.prefix}-${each.key}"
   retention_in_days = var.log_retention_days
-  kms_key_id        = aws_kms_key.platform.arn
+  kms_key_id        = local.kms_key_arn
 }
 
 resource "aws_api_gateway_stage" "main" {

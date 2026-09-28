@@ -165,7 +165,7 @@ locals {
       memory                = local.sizing[name].memory
       desired_count         = local.sizing[name].min
       discoverable          = service.discoverable
-      target_group_arn      = service.nlb_port == null ? null : local.p.target_groups[name].arn
+      target_group_arn      = service.listener_port == null ? null : local.p.target_groups[name].arn
     }
   }
 }

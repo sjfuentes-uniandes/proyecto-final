@@ -9,7 +9,7 @@ output "platform" {
     vpc_id               = aws_vpc.main.id
     private_subnet_ids   = aws_subnet.private[*].id
     private_subnet_cidrs = aws_subnet.private[*].cidr_block
-    kms_key_arn          = aws_kms_key.platform.arn
+    kms_key_arn          = local.kms_key_arn
     cluster              = { id = aws_ecs_cluster.main.id, arn = aws_ecs_cluster.main.arn, name = aws_ecs_cluster.main.name }
     namespace_arn        = aws_service_discovery_http_namespace.main.arn
     catalog = {
@@ -28,8 +28,8 @@ output "platform" {
       names             = local.db_names
       secrets           = { for name, secret in aws_secretsmanager_secret.service_db : name => secret.arn }
     }
-    target_groups  = { for name, group in aws_lb_target_group.access : name => { arn = group.arn, arn_suffix = group.arn_suffix } }
-    nlb_arn_suffix = aws_lb.access.arn_suffix
+    target_groups = { for name, group in aws_lb_target_group.access : name => { arn = group.arn, arn_suffix = group.arn_suffix } }
+    alb           = { arn_suffix = aws_lb.access.arn_suffix, security_group_id = aws_security_group.alb.id }
     queues = {
       for name, queue in aws_sqs_queue.main : name => {
         arn      = queue.arn

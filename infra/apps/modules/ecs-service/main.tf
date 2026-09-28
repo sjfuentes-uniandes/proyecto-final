@@ -54,18 +54,11 @@ resource "aws_ecs_service" "this" {
   enable_ecs_managed_tags            = true
   tags                               = { Service = var.name }
 
-  # La base de réplicas corre en FARGATE; el excedente puede usar FARGATE_SPOT.
+  # FARGATE_SPOT cuesta ~70 % menos; AWS puede interrumpir una tarea con 2 min de
+  # aviso y ECS la reemplaza. Para producción, usar FARGATE.
   capacity_provider_strategy {
-    capacity_provider = "FARGATE"
-    base              = var.desired_count
+    capacity_provider = var.use_fargate_spot ? "FARGATE_SPOT" : "FARGATE"
     weight            = 1
-  }
-  dynamic "capacity_provider_strategy" {
-    for_each = var.use_fargate_spot ? [1] : []
-    content {
-      capacity_provider = "FARGATE_SPOT"
-      weight            = 1
-    }
   }
 
   deployment_circuit_breaker {

@@ -1,5 +1,9 @@
 # Auditoría inmutable de decisiones de identidad y consentimiento (HU-W31,
 # HU-M08, HU-M09): versionado + Object Lock con retención por defecto.
+locals {
+  audit_sse = var.use_customer_managed_key ? "aws:kms" : "AES256"
+}
+
 resource "aws_s3_bucket" "audit" {
   bucket              = "${local.prefix}-auditoria-${local.account_id}"
   object_lock_enabled = true
@@ -29,8 +33,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "audit" {
   rule {
     bucket_key_enabled = true
     apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.platform.arn
+      sse_algorithm     = local.audit_sse
+      kms_master_key_id = local.kms_key_arn
     }
   }
 }
@@ -69,7 +73,7 @@ resource "aws_s3_bucket_policy" "audit" {
         Principal = "*"
         Action    = "s3:PutObject"
         Resource  = "${aws_s3_bucket.audit.arn}/*"
-        Condition = { StringNotEquals = { "s3:x-amz-server-side-encryption" = "aws:kms" }, Null = { "s3:x-amz-server-side-encryption" = "false" } }
+        Condition = { StringNotEquals = { "s3:x-amz-server-side-encryption" = local.audit_sse }, Null = { "s3:x-amz-server-side-encryption" = "false" } }
       }
     ]
   })

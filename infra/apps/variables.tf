@@ -34,6 +34,12 @@ variable "min_replicas" {
   }
 }
 
+variable "paused" {
+  description = "true lleva todos los servicios a 0 tareas (sin costo de Fargate) conservando su configuración."
+  type        = bool
+  default     = false
+}
+
 variable "max_replicas" {
   type    = number
   default = 3
@@ -51,7 +57,7 @@ variable "service_overrides" {
 }
 
 variable "use_fargate_spot" {
-  description = "Ejecuta las réplicas por encima de la base en FARGATE_SPOT (ahorro en ambientes no productivos)."
+  description = "Ejecuta todas las tareas en FARGATE_SPOT (~70 % más barato, con interrupciones posibles). false = FARGATE."
   type        = bool
   default     = true
 }

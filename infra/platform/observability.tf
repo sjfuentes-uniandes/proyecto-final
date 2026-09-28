@@ -2,7 +2,7 @@
 # este tópico, de modo que también se notifica la recuperación.
 resource "aws_sns_topic" "alerts" {
   name              = "${local.prefix}-alertas"
-  kms_master_key_id = aws_kms_key.platform.arn
+  kms_master_key_id = local.kms_key_arn # null: las alarmas no pueden usar aws/sns
 }
 
 resource "aws_sns_topic_policy" "alerts" {
@@ -31,7 +31,7 @@ resource "aws_sns_topic_subscription" "alert_email" {
 resource "aws_cloudwatch_log_group" "metrics" {
   name              = "/ecs/${local.prefix}/metrics"
   retention_in_days = var.log_retention_days
-  kms_key_id        = aws_kms_key.platform.arn
+  kms_key_id        = local.kms_key_arn
 }
 
 # Reemplazos de tareas y despliegues para la continuidad multizona.

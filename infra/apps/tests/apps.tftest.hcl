@@ -30,20 +30,20 @@ override_data {
         vpc_id               = "vpc-1"
         private_subnet_ids   = ["subnet-a", "subnet-b"]
         private_subnet_cidrs = ["10.60.10.0/24", "10.60.11.0/24"]
-        kms_key_arn          = "arn:aws:kms:us-east-1:123456789012:key/0000"
+        kms_key_arn          = null
         cluster              = { id = "arn:aws:ecs:us-east-1:123456789012:cluster/solventa-int", arn = "arn:aws:ecs:us-east-1:123456789012:cluster/solventa-int", name = "solventa-int" }
         namespace_arn        = "arn:aws:servicediscovery:us-east-1:123456789012:namespace/ns-1"
         catalog = {
-          "bff-web"             = { tier = "acceso", nlb_port = 8081, database = false, publishes = false, calls = ["clientes", "cotizacion", "api-socios"], consumes = [], allies = [], stories = [], discoverable = false, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/bff-web", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/bff-web", name = "solventa-int/bff-web" } }
-          "bff-movil"           = { tier = "acceso", nlb_port = 8082, database = false, publishes = false, calls = ["clientes"], consumes = [], allies = [], stories = [], discoverable = false, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/bff-movil", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/bff-movil", name = "solventa-int/bff-movil" } }
-          "api-socios"          = { tier = "acceso", nlb_port = 8083, database = true, publishes = true, calls = ["cotizacion"], consumes = [], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/api-socios", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/api-socios", name = "solventa-int/api-socios" } }
-          "clientes"            = { tier = "nucleo", nlb_port = null, database = true, publishes = true, calls = ["adaptador-identidad"], consumes = [], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/clientes", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/clientes", name = "solventa-int/clientes" } }
-          "catalogo"            = { tier = "nucleo", nlb_port = null, database = true, publishes = false, calls = [], consumes = [], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/catalogo", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/catalogo", name = "solventa-int/catalogo" } }
-          "cotizacion"          = { tier = "nucleo", nlb_port = null, database = true, publishes = true, calls = ["catalogo", "clientes", "adaptador-datos"], consumes = ["consentimientos-cotizacion"], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/cotizacion", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/cotizacion", name = "solventa-int/cotizacion" } }
-          "adaptador-datos"     = { tier = "adaptador", nlb_port = null, database = false, publishes = false, calls = ["simulador-aliados"], consumes = [], allies = ["open-finance", "datos-abiertos"], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/adaptador-datos", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/adaptador-datos", name = "solventa-int/adaptador-datos" } }
-          "adaptador-identidad" = { tier = "adaptador", nlb_port = null, database = false, publishes = false, calls = ["simulador-aliados"], consumes = [], allies = ["kyc"], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/adaptador-identidad", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/adaptador-identidad", name = "solventa-int/adaptador-identidad" } }
-          "auditoria"           = { tier = "worker", nlb_port = null, database = false, publishes = false, calls = [], consumes = ["auditoria"], allies = [], stories = [], discoverable = false, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/auditoria", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/auditoria", name = "solventa-int/auditoria" } }
-          "simulador-aliados"   = { tier = "soporte", nlb_port = null, database = false, publishes = false, calls = [], consumes = [], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/simulador-aliados", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/simulador-aliados", name = "solventa-int/simulador-aliados" } }
+          "bff-web"             = { tier = "acceso", listener_port = 8081, database = false, publishes = false, calls = ["clientes", "cotizacion", "api-socios"], consumes = [], allies = [], stories = [], discoverable = false, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/bff-web", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/bff-web", name = "solventa-int/bff-web" } }
+          "bff-movil"           = { tier = "acceso", listener_port = 8082, database = false, publishes = false, calls = ["clientes"], consumes = [], allies = [], stories = [], discoverable = false, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/bff-movil", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/bff-movil", name = "solventa-int/bff-movil" } }
+          "api-socios"          = { tier = "acceso", listener_port = 8083, database = true, publishes = true, calls = ["cotizacion"], consumes = [], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/api-socios", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/api-socios", name = "solventa-int/api-socios" } }
+          "clientes"            = { tier = "nucleo", listener_port = null, database = true, publishes = true, calls = ["adaptador-identidad"], consumes = [], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/clientes", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/clientes", name = "solventa-int/clientes" } }
+          "catalogo"            = { tier = "nucleo", listener_port = null, database = true, publishes = false, calls = [], consumes = [], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/catalogo", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/catalogo", name = "solventa-int/catalogo" } }
+          "cotizacion"          = { tier = "nucleo", listener_port = null, database = true, publishes = true, calls = ["catalogo", "clientes", "adaptador-datos"], consumes = ["consentimientos-cotizacion"], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/cotizacion", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/cotizacion", name = "solventa-int/cotizacion" } }
+          "adaptador-datos"     = { tier = "adaptador", listener_port = null, database = false, publishes = false, calls = ["simulador-aliados"], consumes = [], allies = ["open-finance", "datos-abiertos"], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/adaptador-datos", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/adaptador-datos", name = "solventa-int/adaptador-datos" } }
+          "adaptador-identidad" = { tier = "adaptador", listener_port = null, database = false, publishes = false, calls = ["simulador-aliados"], consumes = [], allies = ["kyc"], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/adaptador-identidad", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/adaptador-identidad", name = "solventa-int/adaptador-identidad" } }
+          "auditoria"           = { tier = "worker", listener_port = null, database = false, publishes = false, calls = [], consumes = ["auditoria"], allies = [], stories = [], discoverable = false, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/auditoria", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/auditoria", name = "solventa-int/auditoria" } }
+          "simulador-aliados"   = { tier = "soporte", listener_port = null, database = false, publishes = false, calls = [], consumes = [], allies = [], stories = [], discoverable = true, ecr = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/solventa-int/simulador-aliados", url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/solventa-int/simulador-aliados", name = "solventa-int/simulador-aliados" } }
         }
         database = {
           host              = "solventa-int.abc.us-east-1.rds.amazonaws.com"
@@ -65,7 +65,7 @@ override_data {
           "bff-movil"  = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/m/1", arn_suffix = "targetgroup/m/1" }
           "api-socios" = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/s/1", arn_suffix = "targetgroup/s/1" }
         }
-        nlb_arn_suffix = "net/solventa-int-access/1"
+        alb = { arn_suffix = "app/solventa-int-access/1", security_group_id = "sg-alb" }
         queues = {
           auditoria                  = { arn = "arn:aws:sqs:us-east-1:123456789012:solventa-int-auditoria", url = "https://sqs.us-east-1.amazonaws.com/123456789012/solventa-int-auditoria", name = "solventa-int-auditoria", dlq_arn = "arn:aws:sqs:us-east-1:123456789012:solventa-int-auditoria-dlq", dlq_name = "solventa-int-auditoria-dlq" }
           consentimientos-cotizacion = { arn = "arn:aws:sqs:us-east-1:123456789012:solventa-int-consentimientos-cotizacion", url = "https://sqs.us-east-1.amazonaws.com/123456789012/solventa-int-consentimientos-cotizacion", name = "solventa-int-consentimientos-cotizacion", dlq_arn = "arn:aws:sqs:us-east-1:123456789012:solventa-int-consentimientos-cotizacion-dlq", dlq_name = "solventa-int-consentimientos-cotizacion-dlq" }
@@ -152,6 +152,14 @@ run "todos_los_servicios" {
     condition     = length(aws_vpc_security_group_ingress_rule.database) == 4
     error_message = "Solo los servicios con base llegan a PostgreSQL."
   }
+  assert {
+    condition     = toset(keys(aws_vpc_security_group_ingress_rule.alb)) == toset(["bff-web", "bff-movil", "api-socios"])
+    error_message = "Solo los servicios de acceso reciben tráfico del ALB."
+  }
+  assert {
+    condition     = !strcontains(jsonencode(local.task_statements), "kms:")
+    error_message = "Sin clave propia no se otorgan permisos KMS."
+  }
 }
 
 run "despliegue_parcial" {
@@ -175,5 +183,22 @@ run "despliegue_parcial" {
   assert {
     condition     = length(aws_cloudwatch_metric_alarm.profiling_latency) == 0
     error_message = "Sin cotización no hay alarma de perfilamiento."
+  }
+}
+
+run "pausado" {
+  command = plan
+
+  variables {
+    paused = true
+  }
+
+  assert {
+    condition     = alltrue([for target in aws_appautoscaling_target.service : target.min_capacity == 0 && target.max_capacity == 0])
+    error_message = "Pausado: todos los servicios quedan en 0 tareas."
+  }
+  assert {
+    condition     = length(aws_cloudwatch_metric_alarm.healthy_targets) == 0
+    error_message = "Pausado: no se alerta por falta de destinos."
   }
 }

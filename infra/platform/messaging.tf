@@ -5,20 +5,22 @@
 # consumidores aplican Inbox/idempotencia por eventId.
 resource "aws_sns_topic" "business_events" {
   name              = "${local.prefix}-eventos-negocio"
-  kms_master_key_id = aws_kms_key.platform.arn
+  kms_master_key_id = coalesce(local.kms_key_arn, "alias/aws/sns")
 }
 
 resource "aws_sqs_queue" "dlq" {
   for_each                  = local.queues
   name                      = "${local.prefix}-${each.key}-dlq"
-  kms_master_key_id         = aws_kms_key.platform.arn
+  kms_master_key_id         = local.kms_key_arn
+  sqs_managed_sse_enabled   = var.use_customer_managed_key ? null : true
   message_retention_seconds = 1209600
 }
 
 resource "aws_sqs_queue" "main" {
   for_each                   = local.queues
   name                       = "${local.prefix}-${each.key}"
-  kms_master_key_id          = aws_kms_key.platform.arn
+  kms_master_key_id          = local.kms_key_arn
+  sqs_managed_sse_enabled    = var.use_customer_managed_key ? null : true
   visibility_timeout_seconds = each.value.visibility_timeout
   receive_wait_time_seconds  = 20
   message_retention_seconds  = 345600

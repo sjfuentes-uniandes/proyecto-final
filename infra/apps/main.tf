@@ -24,7 +24,8 @@ locals {
   sizing = {
     for name in keys(local.deployed) : name => merge(
       { cpu = var.task_cpu, memory = var.task_memory, min = var.min_replicas, max = var.max_replicas },
-      { for key, value in try(var.service_overrides[name], {}) : key => value if value != null }
+      { for key, value in try(var.service_overrides[name], {}) : key => value if value != null },
+      var.paused ? { min = 0, max = 0 } : {}
     )
   }
 }

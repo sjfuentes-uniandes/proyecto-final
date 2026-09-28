@@ -74,12 +74,12 @@ resource "aws_cloudwatch_metric_alarm" "api_latency" {
   ok_actions          = local.alarm_actions
 }
 
-# --- Disponibilidad del recorrido: destinos saludables detrás del NLB --------
+# --- Disponibilidad del recorrido: destinos saludables detrás del ALB --------
 resource "aws_cloudwatch_metric_alarm" "healthy_targets" {
-  for_each            = { for name, service in local.deployed : name => service if service.nlb_port != null }
+  for_each            = { for name, service in local.deployed : name => service if service.listener_port != null && !var.paused }
   alarm_name          = "${local.prefix}-${each.key}-sin-destinos"
-  alarm_description   = "[${local.p.environment}] ${each.key}: ningún destino saludable en el NLB. Tablero: ${local.dashboard_url}"
-  namespace           = "AWS/NetworkELB"
+  alarm_description   = "[${local.p.environment}] ${each.key}: ningún destino saludable en el ALB. Tablero: ${local.dashboard_url}"
+  namespace           = "AWS/ApplicationELB"
   metric_name         = "HealthyHostCount"
   statistic           = "Minimum"
   comparison_operator = "LessThanThreshold"
@@ -87,7 +87,7 @@ resource "aws_cloudwatch_metric_alarm" "healthy_targets" {
   period              = 60
   evaluation_periods  = 2
   treat_missing_data  = "breaching"
-  dimensions          = { LoadBalancer = local.p.nlb_arn_suffix, TargetGroup = local.p.target_groups[each.key].arn_suffix }
+  dimensions          = { LoadBalancer = local.p.alb.arn_suffix, TargetGroup = local.p.target_groups[each.key].arn_suffix }
   alarm_actions       = local.alarm_actions
   ok_actions          = local.alarm_actions
 }
