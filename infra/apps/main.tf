@@ -1,14 +1,18 @@
 terraform {
-  required_version = ">= 1.9.0, < 2.0.0"
+  required_version = ">= 1.10.0, < 2.0.0"
+  # Estado remoto en S3 (key = <ambiente>/apps.tfstate). Ver infra/DESPLIEGUE.md.
+  backend "s3" {}
   required_providers {
     aws = { source = "hashicorp/aws", version = "~> 6.0" }
   }
 }
 
 data "terraform_remote_state" "platform" {
-  backend = "local"
+  backend = "s3"
   config = {
-    path = var.platform_state_path == null ? "${path.module}/../platform/terraform.tfstate" : var.platform_state_path
+    bucket = var.state_bucket
+    key    = "${var.environment}/platform.tfstate"
+    region = var.state_region
   }
 }
 

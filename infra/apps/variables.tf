@@ -1,7 +1,16 @@
-variable "platform_state_path" {
-  description = "Ruta absoluta opcional al estado de platform; por defecto ../platform/terraform.tfstate."
+variable "state_bucket" {
+  description = "Bucket del estado remoto (lo crea infra/bootstrap). Lo entrega lib.sh como TF_VAR_state_bucket."
   type        = string
-  default     = null
+}
+
+variable "state_region" {
+  type    = string
+  default = "us-east-1"
+}
+
+variable "environment" {
+  description = "Ambiente cuyo estado de platform se lee (<ambiente>/platform.tfstate)."
+  type        = string
 }
 
 variable "image_digests" {

@@ -1,5 +1,8 @@
 terraform {
-  required_version = ">= 1.9.0, < 2.0.0"
+  required_version = ">= 1.10.0, < 2.0.0"
+  # Estado remoto en S3; bucket, key y región los entrega scripts/plataforma/lib.sh
+  # (key = <ambiente>/platform.tfstate). Ver infra/DESPLIEGUE.md.
+  backend "s3" {}
   required_providers {
     aws    = { source = "hashicorp/aws", version = "~> 6.0" }
     random = { source = "hashicorp/random", version = "~> 3.6" }

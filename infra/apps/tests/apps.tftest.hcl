@@ -102,6 +102,8 @@ override_data {
 }
 
 variables {
+  state_bucket = "solventa-tfstate-123456789012"
+  environment  = "int"
   image_digests = {
     "bff-web"             = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
     "bff-movil"           = "sha256:1111111111111111111111111111111111111111111111111111111111111111"

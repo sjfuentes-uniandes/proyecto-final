@@ -25,3 +25,7 @@ experiment-clean-up:
 # la omite (-auto-approve) para ejecución no interactiva.
 destroy:
 	@./scripts/destroy.sh
+
+# Plataforma de las historias en Ready (infra/platform + infra/apps).
+# make infra-ayuda lista los targets; guía: infra/DESPLIEGUE.md
+include infra/plataforma.mk

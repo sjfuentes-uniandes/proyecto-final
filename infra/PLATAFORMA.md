@@ -103,62 +103,13 @@ La NAT solo permite conexiones que salen desde la VPC: nadie en Internet puede a
 
 ## Despliegue
 
-Requisitos: Terraform ≥ 1.9, AWS CLI v2, Docker y credenciales con permisos de administración en la cuenta.
+El despliegue, las actualizaciones por microservicio y la destrucción están automatizados con `make infra-*` y con GitHub Actions. Ver **[DESPLIEGUE.md](DESPLIEGUE.md)** para el orden, los pasos intermedios, la dependencia de imágenes y la configuración de CI.
 
 ```bash
-# 1. Plataforma
-cp infra/platform/terraform.tfvars.example infra/platform/terraform.tfvars
-terraform -chdir=infra/platform init
-terraform -chdir=infra/platform plan -out=platform.tfplan
-terraform -chdir=infra/platform apply platform.tfplan
+make infra-bootstrap              # una vez por cuenta
+make infra-desplegar ENV=int      # plataforma -> bases -> imágenes -> aplicaciones
+make infra-destruir ENV=int       # todo el ambiente
 ```
-
-`aws_api_gateway_account` fija el rol de logs de API Gateway **para toda la región de la cuenta**. Si otra pila ya lo administra, eliminar ese recurso de una de las dos.
-
-```bash
-# 2. Crear bases y usuarios por servicio (idempotente; repetir al agregar un servicio con base)
-eval "$(terraform -chdir=infra/platform output -json db_bootstrap_task | jq -r '"CLUSTER=\(.cluster) TASK=\(.task_definition) SUBNETS=\(.subnets|join(",")) SG=\(.security_group)"')"
-aws ecs run-task --cluster "$CLUSTER" --task-definition "$TASK" --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG],assignPublicIp=DISABLED}"
-# Revisar el resultado en el log group /ecs/<prefijo>/db-bootstrap
-
-# 3. Cargar las credenciales reales de los aliados (opcional; sin ellas se usa el simulador)
-aws secretsmanager put-secret-value --secret-id solventa-int/aliados/kyc \
-  --secret-string '{"client_id":"...","client_secret":"..."}'
-```
-
-```bash
-# 4. Publicar imágenes (solo las de los servicios listos) y registrar sus digests
-REGION=us-east-1
-REPOS=$(terraform -chdir=infra/platform output -json ecr_repositories)
-REGISTRY=$(echo "$REPOS" | jq -r 'first(.[]) | split("/")[0]')
-aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY"
-
-# Por cada servicio listo (etiquetas inmutables):
-#   docker build --platform linux/amd64 -t "$(echo "$REPOS" | jq -r '.clientes'):v1" <ruta-del-servicio>
-#   docker push "$(echo "$REPOS" | jq -r '.clientes'):v1"
-
-# Registrar el último digest de cada repositorio que ya tiene imagen:
-echo "$REPOS" | jq -r 'to_entries[] | "\(.key) \(.value | split("/")[1:] | join("/"))"' |
-while read -r svc repo; do
-  digest=$(aws ecr describe-images --repository-name "$repo" \
-    --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageDigest' --output text 2>/dev/null)
-  [ -n "$digest" ] && [ "$digest" != "None" ] && jq -n --arg k "$svc" --arg v "$digest" '{($k): $v}'
-done | jq -s '{image_digests: (add // {})}' > infra/apps/images.auto.tfvars.json
-
-# 5. Aplicaciones
-cp infra/apps/terraform.tfvars.example infra/apps/terraform.tfvars
-terraform -chdir=infra/apps init
-terraform -chdir=infra/apps plan -out=apps.tfplan
-terraform -chdir=infra/apps apply apps.tfplan
-terraform -chdir=infra/apps output pending_services   # servicios sin imagen todavía
-```
-
-**Despliegue parcial:** `apps` solo crea los servicios presentes en `image_digests`, así que cada historia puede habilitar su servicio cuando tenga imagen. Service Connect solo entrega a una tarea los endpoints que existían cuando arrancó. Por eso `apps` calcula capas de dependencia y crea primero a los servicios invocados. Si un servicio nuevo cambia de capa, Terraform lo recrea. Cuando se agrega un servicio invocado por otros que ya estaban corriendo, forzar un nuevo despliegue de quienes lo llaman (`aws ecs update-service --force-new-deployment`).
-
-**Portal web:** `aws s3 sync dist/ s3://$(terraform -chdir=infra/platform output -json web | jq -r .bucket)` y después invalidar CloudFront. La configuración OAuth pública está en `terraform -chdir=infra/platform output cognito`.
-
-**Socios de prueba (HU-W01/W02 N2/N3):** declarar `partners` en `terraform.tfvars` y leer las credenciales con `terraform -chdir=infra/platform output -json partners`. Obtener el token con `client_credentials` en `cognito.partners.token_url` y llamar al API de socios con `Authorization: Bearer <token>` y `x-api-key: <api_key>`.
 
 ## Contratos para los servicios
 
@@ -203,20 +154,4 @@ aws cloudwatch put-metric-data --namespace Solventa --metric-name OperationDurat
 
 ## Validación sin desplegar
 
-```bash
-for root in platform apps; do
-  terraform -chdir=infra/$root init -backend=false -input=false
-  terraform -chdir=infra/$root fmt -check -recursive
-  terraform -chdir=infra/$root validate
-  terraform -chdir=infra/$root test   # plan completo con proveedores simulados, sin credenciales
-done
-```
-
-## Eliminar el ambiente
-
-Destruir primero **apps** y después **platform**. Con `audit_lock_mode = "GOVERNANCE"`, Terraform puede vaciar el bucket de auditoría. Con `COMPLIANCE`, los objetos no se pueden borrar antes de que venza su retención.
-
-```bash
-terraform -chdir=infra/apps destroy
-terraform -chdir=infra/platform destroy
-```
+`make infra-validar` ejecuta `fmt`, `validate` y `terraform test` (plan completo con proveedores simulados, sin credenciales) de `bootstrap`, `platform` y `apps`.

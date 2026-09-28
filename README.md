@@ -2,6 +2,8 @@
 
 Prototipo para los experimentos de escalabilidad, disponibilidad y latencia. Incluye infraestructura Terraform en [`infra/`](infra/README.md), cuatro servicios sintéticos con Docker en [`src/`](src/README.md) y diagramas en `docs/diagramas`.
 
+> **Plataforma de las historias de usuario:** se despliega y destruye con `make infra-desplegar` / `make infra-destruir` o con los workflows *Infra - …* de GitHub Actions. Ver [infra/DESPLIEGUE.md](infra/DESPLIEGUE.md). Esta página describe el ambiente de los experimentos.
+
 ## Levantar el ambiente en AWS
 
 Esta guía describe comandos para ejecutar manualmente. Crear la documentación no ejecuta el despliegue. El flujo tiene dos raíces Terraform y estados independientes: primero `infra/base`, después publicar las imágenes y desplegar `infra/services`. No ejecutar Terraform desde `infra/` directamente. Si ya existe un despliegue de la estructura anterior, consultar [la migración de estado](infra/README.md#migración-desde-la-estructura-anterior) antes de continuar.

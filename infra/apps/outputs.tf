@@ -10,6 +10,10 @@ output "deployed_services" {
   }
 }
 
+output "cluster_name" {
+  value = local.p.cluster.name
+}
+
 output "pending_services" {
   description = "Servicios del catálogo sin imagen publicada todavía."
   value       = [for name in keys(local.p.catalog) : name if !contains(keys(local.deployed), name)]
