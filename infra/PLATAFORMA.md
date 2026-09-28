@@ -4,7 +4,7 @@ Infraestructura para ejecutar en AWS las 13 historias de la columna **Ready** de
 
 | Raíz | Qué crea | Depende de |
 | --- | --- | --- |
-| `infra/platform/` | Red en 2 zonas, NAT instance (o NAT Gateway), KMS opcional, ECR, RDS PostgreSQL con base y usuario por servicio, clúster ECS y Service Connect, SNS/SQS/DLQ, S3 de auditoría con Object Lock, Cognito, ALB interno + VPC Link v2 + API Gateway REST + WAF opcional, CloudFront para el portal y tópico de alertas | Nada |
+| `infra/platform/` | Red en 2 zonas, NAT instance (o NAT Gateway), KMS opcional, ECR, RDS PostgreSQL con base y usuario por servicio, clúster ECS y Service Connect, SNS/SQS/DLQ, S3 de auditoría con Object Lock, Cognito, ALB interno + VPC Link v2 + API Gateway REST + WAF, CloudFront para el portal y tópico de alertas | Nada |
 | `infra/apps/` | Por cada servicio con imagen publicada: roles IAM, grupos de seguridad, tareas Fargate con colector ADOT, servicios ECS en capas, autoescalado, alarmas y tablero | Estado de `platform` e imágenes en ECR |
 
 El catálogo de servicios vive en un solo lugar: `infra/platform/catalog.tf`. Allí se declaran nivel, puerto del listener del ALB, base de datos, dependencias síncronas, eventos, colas y aliados. `apps` lo recibe por el output `platform`.
@@ -13,8 +13,8 @@ El catálogo de servicios vive en un solo lugar: `infra/platform/catalog.tf`. Al
 
 ```
 Portal web ─► CloudFront + S3 (SPA)
-Portal web / App móvil ─HTTPS─► [WAF] ─► API Gateway "canales" ─┐  (JWT Cognito clientes/back-office)
-Socio ──HTTPS (+mTLS opc.)──► [WAF] ─► API Gateway "socios" ────┤  (JWT client_credentials + API key + plan de uso)
+Portal web / App móvil ─HTTPS─► WAF ─► API Gateway "canales" ─┐  (JWT Cognito clientes/back-office)
+Socio ──HTTPS (+mTLS opc.)──► WAF ─► API Gateway "socios" ────┤  (JWT client_credentials + API key + plan de uso)
                                                               ▼
                                           VPC Link v2 ─► ALB interno (8081/8082/8083)
                                                               ▼
@@ -52,7 +52,7 @@ Transversal (ARQ-001/002/003): tareas repartidas en dos zonas con rebalanceo, ci
 
 ## Decisiones y costos (perfil por defecto: capa gratuita)
 
-Ninguna configuración con ECS Fargate es 100 % gratuita, porque **Fargate no tiene capa gratuita**. El perfil por defecto usa todo lo que sí la tiene y apaga lo que no es indispensable:
+Ninguna configuración con ECS Fargate es 100 % gratuita, porque **Fargate no tiene capa gratuita**. WAF tampoco la tiene, pero se mantiene porque el documento de arquitectura lo exige en el borde. El perfil por defecto usa todo lo que sí tiene capa gratuita y apaga lo que no es indispensable:
 
 | Componente | Perfil por defecto | Capa gratuita (cuentas anteriores a jul-2025, 12 meses) | Sin capa gratuita |
 | --- | --- | --- | --- |
@@ -61,23 +61,39 @@ Ninguna configuración con ECS Fargate es 100 % gratuita, porque **Fargate no ti
 | Base de datos | RDS `db.t4g.micro` Single-AZ, 20 GB, sin autoescalado de almacenamiento | 750 h + 20 GB: 0 USD | ~14 USD/mes |
 | Tareas | 0,25 vCPU / 1 GB, **todas en FARGATE_SPOT** | Sin capa gratuita | ~3,2 USD/mes por tarea (~10,6 en FARGATE) |
 | Cifrado | Claves administradas por AWS (`use_customer_managed_key = false`) | 0 USD | 0 USD (1 USD/mes con clave propia) |
-| WAF | Desactivado (`enable_waf = false`) | Sin capa gratuita | ~9 USD/mes si se activa |
+| WAF | Web ACL mínimo: límite por IP + reglas comunes de AWS | Sin capa gratuita | ~7 USD/mes |
 | Secrets Manager | 8 secretos (bases, aliados y maestro de RDS) | 30 días de prueba | ~3,2 USD/mes |
 | Alarmas CloudWatch | ~34 con los 10 servicios | 10 gratis | ~2,4 USD/mes |
 | API Gateway, Cognito (usuarios), CloudFront, S3, SNS, SQS, ECR, X-Ray | Volumen de pruebas | Dentro de la capa gratuita | Centavos |
 
 Estimado con los 10 servicios encendidos 24/7:
-- **Con capa gratuita: ≈ 38 USD/mes**, casi todo Fargate Spot.
-- **Pausado (`paused = true` en apps): ≈ 6 USD/mes.** Pausar lleva todas las tareas a 0 sin destruir nada; también se puede detener RDS hasta 7 días (`aws rds stop-db-instance`).
-- **Sin capa gratuita: ≈ 81 USD/mes encendido y ≈ 50 USD/mes pausado.**
+- **Con capa gratuita: ≈ 45 USD/mes**, casi todo Fargate Spot y WAF.
+- **Pausado (`paused = true` en apps): ≈ 13 USD/mes.** Pausar lleva todas las tareas a 0 sin destruir nada; también se puede detener RDS hasta 7 días (`aws rds stop-db-instance`).
+- **Sin capa gratuita: ≈ 88 USD/mes encendido y ≈ 57 USD/mes pausado.**
 
 En las cuentas creadas después del 15-jul-2025 (plan gratuito con créditos), estos costos se descuentan de los créditos del plan (hasta 200 USD durante 6 meses). Los clientes OAuth de socios (`client_credentials`) tienen un cobro propio en Cognito: revisar su precio antes de crear muchos socios.
 
 **Qué se pierde con el perfil barato y cómo recuperarlo:**
 - **NAT instance:** una sola instancia en la zona A. Si falla, EC2 la recupera, pero mientras tanto se corta la salida a Internet (aliados, Cognito y API Gateway desde `api-socios`). El ALB, RDS y Service Connect siguen funcionando. `egress_mode = "nat_gateway"` usa el servicio administrado (~33 USD/mes; uno por zona con `high_availability = true`).
 - **FARGATE_SPOT:** AWS puede interrumpir una tarea con 2 minutos de aviso y ECS la reemplaza. `use_fargate_spot = false` para producción.
-- **Sin WAF:** el borde conserva la autenticación con Cognito, las API keys, las cuotas y el throttling de API Gateway. `enable_waf = true` agrega las reglas administradas y el límite por IP.
 - **Una réplica y RDS Single-AZ:** `min_replicas = 2` deja una réplica activa por zona (HU-W29) y `high_availability = true` activa RDS Multi-AZ.
+
+**¿Por qué hace falta NAT?** Las tareas Fargate y RDS viven en subredes privadas, sin IP pública. Aun así, las tareas necesitan conexiones **salientes** a:
+- **Servicios de AWS con endpoint público:** ECR (descargar la imagen al arrancar), CloudWatch Logs, Secrets Manager (credenciales de la base), SNS/SQS (Outbox y consumidores), X-Ray (trazas) y, desde `api-socios`, Cognito y API Gateway (alta de socios, HU-W01).
+- **Imágenes públicas:** el colector ADOT y el cliente `psql` vienen de `public.ecr.aws`.
+- **Aliados externos:** KYC y Open Finance (HU-W10, HU-W30, HU-M06).
+
+Sin salida, una tarea privada ni siquiera arranca, porque no puede descargar su imagen ni leer sus secretos. Hay tres formas de dar esa salida:
+
+| Opción | Costo | Comentario |
+| --- | --- | --- |
+| **NAT instance** (por defecto) | 0 con capa gratuita; ~11 USD/mes sin ella | Todo sigue privado. Una sola instancia. |
+| NAT Gateway | ~33 USD/mes por zona | Administrado y con alta disponibilidad. |
+| Endpoints de interfaz | ~7 USD/mes por servicio y zona (~65 USD/mes para ~9) | No cubren aliados externos ni `public.ecr.aws`. |
+
+La NAT solo permite conexiones que salen desde la VPC: nadie en Internet puede abrir una conexión hacia las tareas.
+
+**¿Por qué no la VPC por defecto?** La VPC por defecto **no es privada**: todas sus subredes tienen ruta directa al Internet Gateway (son públicas) y no tiene subredes privadas ni aisladas. Para usarla sin NAT, cada tarea necesitaría IP pública (`assign_public_ip = true`; ~3,65 USD/mes por IPv4, ≈ 36 USD/mes con 10 servicios) y quedaría alcanzable desde Internet, protegida solo por su grupo de seguridad. Así funciona el ambiente del experimento (`infra/base`). Además, la VPC por defecto no se crea ni se destruye con Terraform, puede no existir o estar compartida con otras cosas de la cuenta, y su CIDR es fijo. Una VPC propia no cuesta nada: se pagan la NAT y los recursos, no la VPC ni sus subredes.
 
 **Otras decisiones:**
 - **API Gateway REST en lugar de HTTP API:** los planes de uso, las API keys y WAF solo existen en REST. REST se integra en privado con el **ALB** mediante un **VPC Link v2** (`integration_target`). El ALB tiene un listener por servicio de acceso (8081 `bff-web`, 8082 `bff-movil`, 8083 `api-socios`) y solo acepta tráfico del grupo de seguridad del VPC Link.

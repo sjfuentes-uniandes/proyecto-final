@@ -187,12 +187,6 @@ variable "custom_domain" {
   default = null
 }
 
-variable "enable_waf" {
-  description = "AWS WAF no tiene capa gratuita (~5 USD/mes + 1 USD por regla). Activarlo en ambientes expuestos."
-  type        = bool
-  default     = false
-}
-
 variable "waf_rate_limit" {
   description = "Solicitudes por IP en 5 minutos antes de bloquear."
   type        = number

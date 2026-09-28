@@ -109,8 +109,8 @@ run "minimo_costo" {
     error_message = "El exceso de cuota debe responder 429."
   }
   assert {
-    condition     = length(aws_wafv2_web_acl_association.api) == 0
-    error_message = "WAF queda desactivado en el perfil de mínimo costo."
+    condition     = length(aws_wafv2_web_acl_association.api) == 2 && length(aws_wafv2_web_acl.api.rule) == 2
+    error_message = "WAF mínimo (2 reglas) debe proteger ambos APIs."
   }
   assert {
     condition     = contains(local.discoverable, "simulador-aliados") && !contains(local.discoverable, "bff-web")
@@ -125,7 +125,6 @@ run "alta_disponibilidad_con_socios_y_mtls" {
     high_availability        = true
     egress_mode              = "nat_gateway"
     use_customer_managed_key = true
-    enable_waf               = true
     partners = {
       socio-a = { tier = "basico", scopes = ["cotizaciones.escribir"] }
       socio-b = { tier = "estandar", scopes = ["cotizaciones.leer"], enabled = false }
@@ -143,8 +142,8 @@ run "alta_disponibilidad_con_socios_y_mtls" {
     error_message = "Alta disponibilidad: RDS Multi-AZ y un NAT Gateway por zona."
   }
   assert {
-    condition     = length(aws_kms_key.platform) == 1 && length(aws_wafv2_web_acl_association.api) == 2
-    error_message = "Perfil completo: clave KMS propia y WAF en ambos APIs."
+    condition     = length(aws_kms_key.platform) == 1
+    error_message = "Perfil completo: clave KMS propia."
   }
   assert {
     condition     = length(aws_cognito_user_pool_client.partner) == 1 && length(aws_api_gateway_api_key.partner) == 2

@@ -4,7 +4,7 @@ environment = "int"
 vpc_cidr    = "10.60.0.0/16"
 
 # Perfil por defecto orientado a la capa gratuita: RDS db.t4g.micro Single-AZ,
-# ALB, NAT instance t3.micro, sin WAF y con claves administradas por AWS. Las
+# ALB, NAT instance t3.micro, WAF mínimo y claves administradas por AWS. Las
 # tareas ECS se reparten igualmente entre las zonas A y B.
 high_availability        = false # true = RDS Multi-AZ (y NAT Gateway por zona si egress_mode = "nat_gateway")
 egress_mode              = "nat_instance" # "nat_gateway" = administrado, ~33 USD/mes por zona
@@ -21,7 +21,7 @@ postgres_version  = "16"
 audit_retention_days = 30
 audit_lock_mode      = "GOVERNANCE"
 
-enable_waf     = false # true = AWS WAF (~9 USD/mes con las reglas configuradas)
+# WAF siempre activo (~7 USD/mes: Web ACL + 2 reglas). Solicitudes por IP en 5 min.
 waf_rate_limit = 2000
 
 partner_tiers = {
