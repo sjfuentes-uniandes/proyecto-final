@@ -1,6 +1,8 @@
 # Banco de los Alpes — Semana 1: Lanzamiento del proyecto
 
-> **Estado del documento:** borrador para decisión del equipo · v0.1 · 2026-10-09
+> **Estado del documento:** borrador para decisión del equipo · v0.2 · 2026-10-09
+>
+> **v0.2:** se refinó con lo que el README del monolito revela del sistema real (stack, endpoints, autenticación, contrato, pruebas y datos). Ver [§3.0 Línea base del monolito](#30-línea-base-lo-que-el-readme-revela-del-monolito).
 >
 > **Regla de este documento:** todo lo marcado como **🟡 DECISIÓN PENDIENTE** es una propuesta, no una decisión. Cada una trae opciones, una recomendación argumentada y el impacto de elegir otra cosa. La decisión final la toma el responsable del equipo y, cuando quede tomada, se cambia la marca a **✅ DECIDIDO (fecha, quién)** y, si es de arquitectura, se registra como ADR.
 
@@ -36,6 +38,11 @@
 | D-10 | Prioridades de los atributos de calidad | Propuesta 1 (§6.2) | Propuesta 2 (§6.2) | Rúbrica, SAD 2 | 🟡 Pendiente |
 | D-11 | Metas numéricas de los escenarios | Valores de §6.3 | Ajustar tras respuesta del tutor sobre volumen | Rúbrica | 🟡 Pendiente |
 | D-12 | Alcance inicial del agente de IA | Solo lectura sobre Simulación; pre-scoring sin efecto vinculante | Sin acceso en el MVP · lectura de Scoring con consentimiento | Seguridad, ADR | 🟡 Pendiente |
+| D-13 | Cómo obtienen Simulación y Scoring los datos de Clientes y Solicitudes | **Llamar a la API REST del monolito a través de una capa anticorrupción** | Leer la BD compartida en solo lectura (transitorio) · réplica propia sincronizada | Consistencia, mantenibilidad, ADR | 🟡 Pendiente |
+| D-14 | Dueño de la escritura de la decisión de scoring | **Scoring calcula y la decisión se persiste en el monolito** (sigue siendo la fuente de verdad) | Scoring con BD propia y el monolito lee de Scoring · escritura doble con reconciliación | Consistencia, reversibilidad, ADR | 🟡 Pendiente |
+| D-15 | Versionado del contrato externo | **Mantener `/api/...` como alias congelado de v1 y publicar `/api/v1/...`** | Solo `/api/v1` y migrar el frontend · versionar por cabecera | Evolutividad, ADR | 🟡 Pendiente |
+| D-16 | Tecnología de la fachada strangler | **Gateway propio en NestJS** (mismo stack del equipo) | nginx/OpenResty con `split_clients` · Kong / Envoy | Fachada, ADR | 🟡 Pendiente |
+| D-17 | Modelo de identidad y autorización | **Evolucionar el JWT actual con claims `sub`, `rol`, `cliente_id` y `scope`** | IdP externo (Keycloak) con OAuth 2.0 / OIDC · mantener el usuario único | Seguridad, ADR | 🟡 Pendiente |
 
 ---
 
@@ -96,6 +103,14 @@ Banco de los Alpes es una entidad financiera colombiana ficticia, vigilada por l
 - **Simulación** (F1): cálculo de cuota y monto máximo, expuesto como API versionada detrás de la fachada. Es lo primero y lo más frecuente que ve el cliente en la app, hoy lo puede tumbar un incidente de mora y casi no escribe estado. Es el tramo con mejor relación valor/riesgo para empezar el estrangulamiento.
 - **Scoring y decisión** (F2): evaluación de una solicitud con el motor de reglas (APROBADO / NEGADO / REVISIÓN_MANUAL). Es el dolor de despliegue explícito del caso: el equipo de reglas no puede publicar un modelo sin una ventana coordinada con pagos. Además es el punto de entrada natural del agente de IA de pre-scoring.
 - **Fachada strangler** compartida, con enrutamiento por porcentaje, reversión al monolito y trazabilidad de qué lado atendió cada petición.
+
+**Rutas del monolito que entran en alcance** (según el README):
+
+| Ruta actual | Destino |
+|---|---|
+| `POST /api/simulaciones` · `GET /api/simulaciones/parametros` | Simulación (F1) |
+| `POST /api/solicitudes/{id}/evaluar` · `GET /api/solicitudes/{id}/decision` | Scoring (F2) |
+| Todas las demás (`/api/auth`, `/api/clientes`, `/api/solicitudes` CRUD y `enviar`, `desembolsar`, `/api/desembolsos`, `/api/obligaciones`) | Siguen en el monolito, la fachada las pasa sin cambios |
 
 **Qué queda fuera de alcance:**
 
@@ -221,6 +236,73 @@ Criterio de evaluación: todas deben poder comprobarse objetivamente, y debe hab
 
 > El caso pide decidir *"con criterio explícito, no con intuición"* y dejar por escrito las opciones descartadas. Este análisis es el insumo para **D-01** y para el futuro **ADR-001**.
 
+### 3.0 Línea base: lo que el README revela del monolito
+
+> Fuente: README del repositorio base (monolito + fachada). Todo lo que sigue se deduce de ese documento. Lo que haya que confirmar leyendo el código está marcado con **🔍 verificar en código**.
+
+#### 3.0.1 Arquitectura actual
+
+```
+┌────────────────┐  HTTP   ┌─────────────────────────────┐  SQL  ┌──────────────┐
+│ Frontend React │ ──────▶ │ Backend NestJS (monolito)   │ ────▶ │ PostgreSQL 16│
+│ + nginx :5173  │  /api   │ 6 módulos + auth + Swagger  │       │ (una sola BD)│
+└────────────────┘         │ :8000                       │       │ :5432        │
+                           └─────────────────────────────┘       └──────────────┘
+```
+
+| Aspecto | Estado actual | Implicación para el proyecto |
+|---|---|---|
+| Stack | Node 20, NestJS 10, TypeORM 0.3, PostgreSQL 16, React 18 + Vite, Docker Compose, GitHub Actions | Construir F1, F2 y la fachada en **el mismo stack** baja la curva de aprendizaje y permite reutilizar entidades y validaciones (relacionado con D-16). |
+| Despliegue | Un solo proceso desplegable (`backend/`) con los 6 módulos | Confirma el dolor de acoplamiento: para cambiar `scoring/reglas.ts` hay que redesplegar todo el backend, incluidos pagos y mora. |
+| Datos | **Una sola BD** compartida por los 6 módulos, con migraciones TypeORM en `backend/src/migrations/` | Es la fuente principal del riesgo de consistencia. Extraer un servicio exige decidir quién es dueño de cada tabla (D-13 y D-14). |
+| Prefijo de rutas | Todo bajo `/api`, **sin versión** | No cumple todavía el mandato de "APIs versionadas". El frontend depende de `/api` vía el proxy de nginx/Vite, así que cambiarlo rompe al consumidor más importante (D-15). |
+| Contrato | `openapi.yaml` **escrito a mano e "incompleto por diseño"**, servido en `/openapi.yaml` y `/docs` | Es el primer entregable *contract-first*: completar y formalizar el contrato de Simulación y Scoring antes de implementar. También es la base del *gate* de breaking changes. |
+| Autenticación | `POST /api/auth/login` con **un solo usuario** (`analista` / `alpes123`) que recibe un JWT (`@nestjs/jwt`) con un guard global | No hay identidad del cliente final ni de terceros, ni *scopes* ni propiedad del recurso. Hoy **cualquier token válido puede leer cualquier solicitud**: es exactamente el escenario BOLA de la semana 5 (D-17). |
+| Pruebas | Unitarias (Jest, sin BD) y e2e de **characterization + contrato** (Supertest, con BD) | Las pruebas de *characterization* son la red de seguridad del strangler: el servicio extraído debe pasar **las mismas pruebas** que el monolito para demostrar equivalencia de comportamiento. |
+| Datos de prueba | Seed funcional (~50 clientes) y `seed:performance` con niveles `small`, `medium` (~10 000 clientes, ~30 000 solicitudes) y `large` | El nivel `medium` es el candidato natural para las pruebas k6 de la semana 4. |
+| Observabilidad | Solo `GET /api/health` y los logs de Docker | No hay identificador de correlación ni registro de qué lado atendió la petición. La observabilidad diferencial hay que construirla en la fachada. |
+| CI | GitHub Actions con lint y pruebas | Ahí se añade el *gate* de breaking changes del contrato (semana 2) y la *fitness function* (semana 3). |
+
+#### 3.0.2 Mapa de endpoints por módulo
+
+| Módulo | Endpoints | Tipo | Dependencias de datos probables |
+|---|---|---|---|
+| Auth | `POST /api/auth/login` | — | Credenciales en variables de entorno |
+| Clientes | `GET/POST /api/clientes` · `GET/PUT /api/clientes/{id}` · `GET /api/clientes/{id}/obligaciones` | Lectura y escritura | Clientes, obligaciones (para la exposición) |
+| **Simulación** | `POST /api/simulaciones` · `GET /api/simulaciones/parametros` | **Cálculo, sin persistir** | Parámetros base. Con `cliente_id`, ingresos y exposición del cliente para el monto máximo 🔍 |
+| Solicitudes | `GET/POST /api/solicitudes` (paginado) · `GET/PUT /api/solicitudes/{id}` · `POST .../enviar` · `GET .../estado` | Lectura y escritura | Solicitudes, clientes |
+| **Scoring** | `POST /api/solicitudes/{id}/evaluar` · `GET /api/solicitudes/{id}/decision` | **Escribe la decisión** | Solicitud, cliente (ingresos y exposición), reglas en `scoring/reglas.ts`. Posiblemente cambia el estado de la solicitud 🔍 |
+| Desembolso | `POST /api/solicitudes/{id}/desembolsar` · `GET /api/desembolsos/{id}` | Escritura (dinero) | Decisión, solicitud, crea la obligación |
+| Ciclo de vida | `GET /api/obligaciones/{id}` · `POST/GET .../pagos` · `POST .../refinanciar` · `GET .../mora` | Escritura (dinero) | Obligaciones, pagos |
+
+#### 3.0.3 Hallazgos que cambian el análisis
+
+1. **Scoring vive bajo la ruta de Solicitudes** (`/api/solicitudes/{id}/evaluar`). La fachada tiene que enrutar **por ruta y método**, no por prefijo de módulo: `/api/solicitudes/{id}/evaluar` va a F2 y `/api/solicitudes/{id}` sigue en el monolito.
+2. **Simulación depende de Clientes** cuando se envía `cliente_id` (para calcular el monto máximo). El servicio extraído necesita leer ingresos y exposición sin acoplarse a la BD del monolito (D-13).
+3. **Desembolso depende de la decisión de Scoring.** Si la decisión se persiste fuera del monolito, el desembolso, que sigue en el monolito, deja de verla. Este es el argumento más fuerte para que la decisión se siga escribiendo en el monolito durante la coexistencia (D-14).
+4. **El modelo de seguridad actual no distingue sujetos.** Antes de exponer cualquier cosa a agregadores o al agente de IA hay que introducir identidad del consumidor, *scopes* y propiedad del recurso (D-17).
+5. **No hay versión en las rutas** y el frontend usa `/api` directamente. Cualquier estrategia de versionado debe mantener `/api` funcionando para la app (D-15).
+6. **Las pruebas de characterization ya existen**, así que la equivalencia de comportamiento entre el monolito y el servicio extraído se puede medir desde el primer día.
+
+#### 3.0.4 Decisiones nuevas que salen de la línea base
+
+- **🟡 D-13 · Acceso a datos de Clientes y Solicitudes desde F1 y F2.**
+  - **Recomendación:** consumir la API REST del monolito (`GET /api/clientes/{id}`, `GET /api/solicitudes/{id}`) a través de una **capa anticorrupción** en cada servicio. El monolito sigue siendo dueño de sus tablas, no hay acoplamiento al esquema y la reversión es trivial.
+  - **Costo:** latencia extra y dependencia de la disponibilidad del monolito. Se mitiga con *timeout*, *circuit breaker* y caché corta de los parámetros.
+  - **Alternativa rápida:** leer la BD compartida en solo lectura. Es más simple, pero perpetúa el acoplamiento que justifica el proyecto. Si se elige, debe quedar como deuda explícita en un ADR, con fecha de salida.
+- **🟡 D-14 · Dueño de la decisión de scoring.**
+  - **Recomendación:** Scoring calcula y **el monolito persiste** la decisión, ya sea vía un endpoint interno o vía la fachada (depende de T-02). Así Desembolso no cambia, hay una sola fuente de verdad y volver al 100 % monolito no deja decisiones huérfanas.
+  - **Alternativa:** Scoring con su propia BD. Es más autónomo, pero obliga a sincronizar la decisión hacia el monolito y crea la "zona ciega" que la SFC no admite.
+- **🟡 D-15 · Versionado.**
+  - **Recomendación:** publicar `/api/v1/...` como contrato oficial para terceros y mantener `/api/...` como **alias congelado de v1** para que la app React no se rompa. La fachada traduce ambos al mismo destino.
+  - **Alternativa:** migrar el frontend a `/api/v1` y retirar `/api`. Es más limpio, pero toca un consumidor que hoy funciona.
+- **🟡 D-16 · Tecnología de la fachada.**
+  - **Recomendación:** un **gateway en NestJS**, el mismo stack del equipo. Da control total del enrutamiento por ruta, método y porcentaje, del `X-Correlation-Id`, de la auditoría de qué lado atendió y del cambio de porcentaje en caliente.
+  - **Alternativas:** nginx/OpenResty (ya hay nginx en el frontend; muy liviano, pero la lógica de auditoría es más incómoda) y Kong o Envoy (más capacidades, pero más curva de aprendizaje y operación).
+- **🟡 D-17 · Identidad y autorización.**
+  - **Recomendación:** enriquecer el JWT existente con `sub`, `rol` (analista, cliente, agregador, agente_ia), `cliente_id` y `scope`, y validar la propiedad del recurso en F2. Es el cambio mínimo que permite demostrar la mitigación de BOLA y el alcance del agente.
+  - **Alternativa:** un IdP externo (Keycloak) con OAuth 2.0 / OIDC. Se acerca más a un perfil real de open finance, pero cuesta más montarlo (depende de T-05).
+
 ### 3.1 Criterios
 
 Cada criterio se califica de 1 a 5, donde **5 significa "más conviene extraerlo primero"**.
@@ -239,14 +321,16 @@ Cada criterio se califica de 1 a 5, donde **5 significa "más conviene extraerlo
 
 | Módulo | C1 | C2 | C3 | C4 | C5 | C6 | C7 | **Total /35** | Lectura |
 |---|---|---|---|---|---|---|---|---|---|
-| **Simulación** | 5 | 5 | 3 | 5 | 5 | 5 | 4 | **32** | Alto tráfico, casi sin estado, hoy lo tumba la mora y se revierte trivialmente. |
-| **Scoring y decisión** | 4 | 3 | 5 | 3 | 4 | 3 | 5 | **27** | Es el dolor de despliegue explícito y el punto de entrada del agente de IA. Escribe la decisión, así que hay riesgo moderado de consistencia. |
+| **Simulación** | 5 | 5 | 3 | 4 | 5 | 5 | 4 | **31** | Alto tráfico, no persiste nada, hoy lo tumba la mora y se revierte trivialmente. Baja de 5 a 4 en C4 porque lee los datos del cliente cuando recibe `cliente_id`. |
+| **Scoring y decisión** | 4 | 3 | 5 | 2 | 4 | 3 | 5 | **26** | Es el dolor de despliegue explícito y el punto de entrada del agente de IA. Baja en C4 porque escribe la decisión y Desembolso (que sigue en el monolito) depende de ella. Las reglas ya están aisladas en `scoring/reglas.ts`, lo que facilita la extracción. |
 | Clientes | 3 | 2 | 2 | 2 | 3 | 3 | 4 | 19 | Es el dato maestro del que dependen todos. Extraerlo primero rompe muchos acoplamientos a la vez. |
 | Solicitudes | 4 | 2 | 2 | 1 | 4 | 1 | 3 | 17 | Es el corazón del estado. Partirlo primero crea la "zona ciega" que la SFC prohíbe. |
 | Desembolso | 2 | 2 | 2 | 1 | 1 | 1 | 2 | 11 | Mueve dinero real, PCI-DSS completo y los agregadores no pueden iniciarlo. |
 | Ciclo de vida | 2 | 1 | 4 | 1 | 1 | 1 | 2 | 12 | Pagos y mora (PCI). Es el que causa incidentes: conviene aislarlo de los demás, no tocarlo primero. |
 
 > Las calificaciones son una **propuesta** para que el equipo las discuta. Si alguien no está de acuerdo con un número, se cambia aquí y queda el motivo.
+>
+> **v0.2:** se ajustaron C4 de Simulación y de Scoring con lo que muestra el README (§3.0.3). El orden no cambia.
 
 ### 3.3 Opciones para D-01
 
@@ -267,7 +351,7 @@ Cada criterio se califica de 1 a 5, donde **5 significa "más conviene extraerlo
 Extraeríamos primero **Simulación** y, en paralelo con un despliegue más conservador, **Scoring y decisión**.
 
 - **Simulación** es el módulo con mejor relación valor/riesgo. Es lo primero y lo más frecuente que ve el cliente en la app, hoy lo puede tumbar un incidente de mora con el que no tiene nada que ver, casi no escribe estado compartido y por eso se puede devolver al monolito en minutos sin reconciliar datos. Es el lugar ideal para probar la fachada, el enrutamiento por porcentaje, la observabilidad diferencial y el *rollback* antes de tocar algo más delicado.
-- **Scoring** ataca el problema de mantenibilidad que más le duele al banco: el equipo de reglas no puede desplegar un modelo nuevo sin una ventana coordinada con pagos. También es donde va a vivir el agente de IA de pre-scoring, así que conviene diseñar su contrato y su modelo de autorización desde el principio. Su riesgo es la consistencia de la decisión. Lo mitigamos dejando la **solicitud** como propiedad del monolito: Scoring solo produce una decisión inmutable, trazable con un identificador de correlación y la versión del motor de reglas que la emitió.
+- **Scoring** ataca el problema de mantenibilidad que más le duele al banco: el equipo de reglas no puede desplegar un modelo nuevo sin una ventana coordinada con pagos. También es donde va a vivir el agente de IA de pre-scoring, así que conviene diseñar su contrato y su modelo de autorización desde el principio. Su riesgo es la consistencia de la decisión. Lo mitigamos dejando la **solicitud** como propiedad del monolito: Scoring solo produce una decisión inmutable, trazable con un identificador de correlación y la versión del motor de reglas que la emitió. Esa decisión se persiste en el monolito (D-14), porque Desembolso, que no se migra, depende de ella.
 
 **Descartamos por ahora:**
 
@@ -322,6 +406,26 @@ Una reescritura completa no llegaría a tiempo con la trazabilidad y el respaldo
 - **Scoring y decisión**: resuelve el acoplamiento de despliegue del motor de reglas y prepara el punto de entrada controlado del agente de IA. La solicitud sigue siendo del monolito y la decisión se registra como un hecho inmutable y trazable.
 - **Fachada strangler compartida**: punto único de entrada para los cinco consumidores, con versionado externo estable, enrutamiento por porcentaje, reversión en minutos y registro de qué lado atendió cada petición.
 
+**Arquitectura objetivo de la primera ola** (🟡 sujeta a D-13, D-14 y D-16):
+
+```
+                      ┌──────────────────────────────────────────┐
+ App / agregadores /  │ Fachada strangler                        │
+ agente IA / internos │ · auth y scopes · X-Correlation-Id       │
+ ───────────────────▶ │ · enrutamiento por ruta+método y %       │
+   /api  y  /api/v1   │ · registro "lado que atendió"            │
+                      └───────┬──────────────┬──────────────┬────┘
+                 POST /simulaciones   POST .../evaluar      resto de rutas
+                              │              │              │
+                    ┌─────────▼───┐   ┌──────▼──────┐   ┌───▼──────────────┐
+                    │ Simulación  │   │  Scoring    │   │ Monolito NestJS  │
+                    │ (F1)        │   │  (F2)       │   │ (fuente de verdad│
+                    └──────┬──────┘   └──────┬──────┘   │  de lo no migrado)│
+                           │  lectura vía ACL │ decisión └────────┬─────────┘
+                           └───────────▶ API del monolito ◀──────┘   │
+                                                            PostgreSQL (única)
+```
+
 (Ver la matriz y las opciones descartadas en [§3](#3-análisis-de-los-seis-módulos-qué-se-extrae-primero).)
 
 **Qué queda fuera de alcance:** Desembolso, Ciclo de vida (pagos, refinanciación, mora), Solicitudes y Clientes como sistemas de registro, integración real con burós y canales productivos, migración de datos históricos y certificación formal ante la SFC.
@@ -338,10 +442,13 @@ Esta sección expresa la Rúbrica de Atributos de Calidad como **escenarios de c
 
 | ID | Requisito | Servicio |
 |---|---|---|
-| RF-SIM-01 | Calcular la cuota y el monto máximo a partir de monto, plazo, tasa e ingresos, sin crear una solicitud. | Simulación |
-| RF-SIM-02 | Exponer la simulación como API versionada (`/v1/...`) para la app, los agregadores y el agente de IA. | Simulación |
-| RF-SCO-01 | Evaluar una solicitud ENVIADA y producir APROBADO, NEGADO o REVISIÓN_MANUAL, con el detalle de las reglas aplicadas y la versión del motor. | Scoring |
-| RF-SCO-02 | Consultar la decisión de una solicitud solo si el consumidor está autorizado sobre ese recurso. | Scoring |
+| RF-SIM-01 | Calcular la cuota (`monto`, `plazo_meses`, `tasa_ea`) y, si llega `cliente_id`, el monto máximo según ingresos y exposición, sin crear una solicitud. Reemplaza `POST /api/simulaciones` con el mismo comportamiento. | Simulación |
+| RF-SIM-02 | Exponer los parámetros base de simulación. Reemplaza `GET /api/simulaciones/parametros`. | Simulación |
+| RF-SIM-03 | Publicar la simulación como API versionada (`/api/v1/simulaciones`) para la app, los agregadores y el agente de IA, manteniendo `/api/simulaciones` funcional (D-15). | Simulación + fachada |
+| RF-SCO-01 | Evaluar una solicitud ENVIADA y producir APROBADO, NEGADO o REVISION_MANUAL con puntaje, reglas aplicadas y versión del motor. Reemplaza `POST /api/solicitudes/{id}/evaluar`. | Scoring |
+| RF-SCO-02 | Consultar la decisión de una solicitud solo si el consumidor está autorizado sobre ese recurso. Reemplaza `GET /api/solicitudes/{id}/decision`. | Scoring |
+| RF-SCO-03 | Dejar la decisión disponible para Desembolso, que sigue en el monolito (D-14). | Scoring + monolito |
+| RF-EQV-01 | El servicio extraído pasa las pruebas de *characterization* y de contrato existentes del monolito para su tramo. | F1, F2 |
 | RF-FAC-01 | Enrutar cada petición al monolito o al servicio nuevo según un porcentaje configurable en caliente. | Fachada |
 | RF-FAC-02 | Volver al 100 % monolito sin redespliegue. | Fachada |
 | RF-FAC-03 | Registrar por petición el identificador de correlación, el lado que la atendió y el motivo del enrutamiento. | Fachada |
@@ -396,8 +503,8 @@ Las medidas son **metas** en v0.1 (🟡 D-11).
 |---|---|
 | **Estímulo** | Pico de peticiones de simulación de crédito. |
 | **Fuente del estímulo** | Clientes en la app móvil durante una campaña comercial o una quincena de pago. |
-| **Artefacto** | `POST /v1/simulaciones` del servicio de Simulación, a través de la fachada strangler. |
-| **Entorno** | Pico de 8× el volumen normal (≈ 11 rps sostenidos, ráfagas de 50 rps) durante 15 minutos, con el 100 % del tráfico de simulación enrutado al servicio nuevo. |
+| **Artefacto** | `POST /api/v1/simulaciones` (hoy `POST /api/simulaciones`) del servicio de Simulación, a través de la fachada strangler. |
+| **Entorno** | Pico de 8× el volumen normal (≈ 11 rps sostenidos, ráfagas de 50 rps) durante 15 minutos, con el 100 % del tráfico de simulación enrutado al servicio nuevo. La BD está cargada con `seed:performance --scale medium` (~10 000 clientes) y el 50 % de las peticiones incluye `cliente_id`. |
 | **Respuesta esperada** | El servicio calcula y devuelve cuota y monto máximo sin degradarse, y la fachada no añade latencia significativa. |
 | **Medida de la respuesta** | **p95 < 300 ms** y **p99 < 800 ms** de extremo a extremo medidos en la fachada. **Tasa de error < 1 %**. Sobrecosto de la fachada **p95 < 20 ms**. Se mide con k6. |
 | **Medida real** | *(semana 4)* |
@@ -408,8 +515,8 @@ Las medidas son **metas** en v0.1 (🟡 D-11).
 |---|---|
 | **Estímulo** | Una petición con un token válido intenta leer la decisión de scoring de una solicitud que pertenece a otro cliente (BOLA), o pide una acción fuera de su *scope*. |
 | **Fuente del estímulo** | Un consumidor autenticado (app de otro cliente, agregador fintech o agente de IA) que manipula el identificador del recurso o el alcance solicitado. |
-| **Artefacto** | `GET /v1/solicitudes/{id}/decision` del servicio de Scoring y la política de *scopes* de la fachada. |
-| **Entorno** | Operación normal, con autenticación OAuth 2.0 / OIDC activa. |
+| **Artefacto** | `GET /api/v1/solicitudes/{id}/decision` (hoy `GET /api/solicitudes/{id}/decision`) del servicio de Scoring y la política de *scopes* de la fachada. |
+| **Entorno** | Operación normal, con el modelo de identidad de D-17 activo (token con `sub`, `cliente_id` y `scope`). **Línea base:** con el JWT actual de usuario único, esta prueba **falla por diseño**, porque cualquier token lee cualquier decisión. Ese resultado se documenta como evidencia del riesgo antes de mitigarlo. |
 | **Respuesta esperada** | Rechazo con **403** (o **404** para no revelar que el recurso existe, 🟡 a decidir en ADR), registro del intento en auditoría con el identificador de correlación, y ningún dato del recurso ajeno en la respuesta. El agente de IA y los agregadores no pueden invocar operaciones de escritura vinculantes. |
 | **Medida de la respuesta** | **0 accesos indebidos** en la suite automatizada de BOLA. La prueba **falla si se retira el *guard*** de autorización. El 100 % de los intentos rechazados quedan en auditoría. Hay **0 amenazas STRIDE de severidad alta** sin mitigación. |
 | **Medida real** | *(semana 5)* |
@@ -420,10 +527,10 @@ Las medidas son **metas** en v0.1 (🟡 D-11).
 |---|---|
 | **Estímulo** | El equipo de riesgo pide cambiar una regla del motor de scoring, por ejemplo un nuevo umbral de capacidad de pago. |
 | **Fuente del estímulo** | Equipo de negocio de riesgo de crédito. |
-| **Artefacto** | Módulo de dominio (reglas) del servicio de Scoring. |
+| **Artefacto** | Módulo de dominio (reglas) del servicio de Scoring, heredero de `backend/src/scoring/reglas.ts`. |
 | **Entorno** | Tiempo de desarrollo, con el servicio en producción y tráfico parcial enrutado. |
 | **Respuesta esperada** | El cambio se hace solo en la capa de dominio, sin tocar adaptadores ni el contrato. Se despliega de forma independiente, sin ventana coordinada con pagos ni redespliegue del monolito. |
-| **Medida de la respuesta** | El cambio toca **≤ 2 archivos de la capa de dominio** y **0 de infraestructura o contrato**. Se despliega en **< 1 día** desde la aprobación. La *fitness function* de arquitectura (dependencias solo hacia adentro) pasa en CI en el **100 %** de los *builds*. |
+| **Medida de la respuesta** | El cambio toca **≤ 2 archivos de la capa de dominio** y **0 de infraestructura o contrato**. Se despliega en **< 1 día** desde la aprobación **sin redesplegar el monolito** (hoy exige redesplegar el backend completo). La *fitness function* de arquitectura (dependencias solo hacia adentro) pasa en CI en el **100 %** de los *builds*. |
 | **Medida real** | *(semanas 3 y 7)* |
 
 #### Escalabilidad
@@ -445,7 +552,7 @@ Las medidas son **metas** en v0.1 (🟡 D-11).
 | **Estímulo** | El porcentaje de enrutamiento de Scoring sube (canary 10 % → 50 %) y luego se revierte al 0 % por un fallo. |
 | **Fuente del estímulo** | El equipo de operación, siguiendo el plan de despliegue progresivo, o una alarma automática. |
 | **Artefacto** | Fachada strangler, servicio de Scoring y registro de decisiones del monolito. |
-| **Entorno** | Coexistencia: el monolito es dueño de la solicitud y Scoring emite decisiones para una fracción del tráfico. |
+| **Entorno** | Coexistencia: el monolito es dueño de la solicitud y de la tabla de decisiones (D-14). Scoring calcula las decisiones para una fracción del tráfico. Desembolso, en el monolito, consume la decisión sin importar quién la calculó. |
 | **Respuesta esperada** | Cada solicitud tiene **una sola decisión vigente**, con un identificador de correlación único que permite saber quién la decidió (monolito o servicio nuevo), con qué versión de reglas y por qué. La reversión no deja decisiones huérfanas ni duplicadas. |
 | **Medida de la respuesta** | **100 %** de las solicitudes del periodo de prueba son reconciliables (una decisión y un lado identificado). Hay **0 decisiones duplicadas o huérfanas** en el reporte de reconciliación. Para una solicitud puntual, la pregunta "¿quién la resolvió y por qué?" se responde con evidencia en **< 5 minutos**. |
 | **Medida real** | *(semana 7)* |
@@ -456,7 +563,7 @@ Las medidas son **metas** en v0.1 (🟡 D-11).
 |---|---|
 | **Estímulo** | Un desarrollador propone un cambio al contrato OpenAPI de Simulación o Scoring, por ejemplo renombrar o eliminar un campo de la respuesta. |
 | **Fuente del estímulo** | El equipo de desarrollo, en un PR. |
-| **Artefacto** | El contrato OpenAPI publicado (`/v1`) y el pipeline de CI. |
+| **Artefacto** | El contrato OpenAPI publicado (`/api/v1`, a partir del `openapi.yaml` hoy incompleto) y el pipeline de GitHub Actions. |
 | **Entorno** | Tiempo de integración, con agregadores fintech, la app y el agente de IA consumiendo `v1` en producción. |
 | **Respuesta esperada** | El *gate* de CI detecta el breaking change y bloquea el merge, salvo que se publique como nueva versión mayor (`v2`) con convivencia y una política de deprecación. Los cambios aditivos pasan sin fricción. |
 | **Medida de la respuesta** | **100 %** de los breaking changes detectados y bloqueados en CI (verificado con PR de prueba). **0 consumidores de `v1` rotos**. La política de deprecación garantiza **≥ 6 meses** de convivencia entre versiones mayores (🟡 a confirmar en ADR). |
@@ -479,12 +586,14 @@ Las medidas son **metas** en v0.1 (🟡 D-11).
 | ID | Duda | Por qué importa | Estado |
 |---|---|---|---|
 | T-01 | ¿Los repositorios F1 y F2 corresponden obligatoriamente a Simulación y Scoring (por los roles del enunciado), o el equipo puede elegir otros módulos? | Define si D-01 es abierta o ya está acotada por el curso. | 🟡 Por enviar |
-| T-02 | ¿El monolito base expone ya algún mecanismo de integración (API interna, eventos, acceso a la base de datos) o hay que construir la anticorrupción desde cero? | Afecta la estrategia de consistencia y la carga de la fachada. | 🟡 Por enviar |
+| T-02 | El README solo muestra la API REST pública y una BD compartida. ¿Podemos **modificar el código del monolito** (por ejemplo, añadir un endpoint interno, propagar `X-Correlation-Id` o aceptar decisiones calculadas por Scoring), o debe tratarse como caja negra? | Decide D-13 y D-14: si es caja negra, la única vía de integración es su API pública o la BD. | 🟡 Por enviar |
 | T-03 | ¿Hay cifras de referencia de volumen (solicitudes por hora, relación simulación/solicitud) o el equipo las define como supuestos? | Calibra las medidas de rendimiento y escalabilidad. | 🟡 Por enviar |
-| T-04 | ¿Qué infraestructura de despliegue se espera (local con Docker Compose, nube, Kubernetes)? | Afecta cómo se miden la escalabilidad y el *rollback*. | 🟡 Por enviar |
-| T-05 | ¿Se espera un proveedor de identidad concreto (OAuth 2.0 / OIDC, FAPI) para simular el perfil de seguridad de open finance? | Define el modelo de *scopes* para agregadores y para el agente de IA. | 🟡 Por enviar |
+| T-04 | El monolito corre con Docker Compose. ¿Basta con extender ese `docker-compose.yml` con la fachada, F1 y F2, o se espera desplegar en nube? | Afecta cómo se miden la escalabilidad (réplicas) y el *rollback*. | 🟡 Por enviar |
+| T-05 | Hoy el login es un único usuario `analista` con JWT. ¿Se espera introducir un proveedor de identidad (OAuth 2.0 / OIDC, perfil FAPI) o basta con enriquecer el JWT con `cliente_id` y `scope`? | Decide D-17 y el modelo de *scopes* para agregadores y el agente de IA. | 🟡 Por enviar |
 | T-06 | ¿El agente de IA debe implementarse o basta con diseñar y defender su alcance de acceso? | Define el esfuerzo de la semana 5 y siguientes. | 🟡 Por enviar |
 | T-07 | ¿El SAD y la rúbrica se entregan en la wiki de GitHub del repositorio base o en otro medio? | Logística del entregable. | 🟡 Por enviar |
+| T-08 | ¿La fachada vive en el repositorio base (dice "monolito + fachada") y F1 y F2 en sus propios repositorios? ¿Ya existe un esqueleto de fachada? | Define dónde trabaja el rol de Integración y D-16. | 🟡 Por enviar |
+| T-09 | ¿Las pruebas e2e de *characterization* y contrato del monolito se pueden reutilizar contra F1 y F2 para demostrar equivalencia? | Valida RF-EQV-01 como criterio de corte de tráfico. | 🟡 Por enviar |
 
 ---
 
